@@ -1,0 +1,155 @@
+configuration {
+    modi:                        "drun,run,filebrowser";
+    show-icons:                  true;
+    display-drun:                " ";
+    display-run:                 " ";
+    display-filebrowser:         " ";
+    drun-display-format:         "{name}";
+    font:                        "FiraCode Nerd Font 13";
+    sort:                        true;
+    sorting-method:              "fzf";
+    max-history-size:            25;
+}
+
+* {
+    bg:                          #282a3aee;
+    bg-dark:                     #1e1f2b;
+    text:                        #eaf2f1;
+    dimmed:                      #888d94;
+    red:                         #ff657a;
+    border-col:                  #3a3d4b;
+    selected:                    rgba(255, 101, 122, 0.25);
+    shade:                       rgba(255, 255, 255, 0.06);
+}
+
+window {
+    width:                       650px;
+    transparency:                "real";
+    background-color:            @bg;
+    border:                      1px solid;
+    border-color:                @red;
+    border-radius:               16px;
+    location:                    center;
+    anchor:                      center;
+    y-offset:                    -120px;
+}
+
+mainbox {
+    children:                    [ "inputbar", "listview", "mode-switcher" ];
+    background-color:            transparent;
+    spacing:                     0px;
+    padding:                     0px;
+}
+
+inputbar {
+    children:                    [ "prompt", "entry" ];
+    background-color:            @bg-dark;
+    border-radius:               12px;
+    text-color:                  @text;
+    spacing:                     12px;
+    margin:                      12px;
+    padding:                     14px 16px;
+}
+
+prompt {
+    background-color:            transparent;
+    text-color:                  @dimmed;
+}
+
+entry {
+    background-color:            transparent;
+    text-color:                  @text;
+    cursor:                      text;
+    placeholder:                 "Search...";
+    placeholder-color:           @dimmed;
+}
+
+listview {
+    columns:                     1;
+    lines:                       9;
+    cycle:                       true;
+    dynamic:                     true;
+    scrollbar:                   false;
+    layout:                      vertical;
+    fixed-height:                false;
+    background-color:            transparent;
+    spacing:                     2px;
+    margin:                      0px 8px;
+    padding:                     0px 4px 8px 4px;
+}
+
+element {
+    cursor:                      pointer;
+    border-radius:               10px;
+    background-color:            transparent;
+    text-color:                  @text;
+    padding:                     8px 12px;
+    spacing:                     12px;
+}
+
+element normal.normal,
+element alternate.normal {
+    background-color:            transparent;
+    text-color:                  @text;
+}
+
+element selected.normal {
+    background-color:            @selected;
+    text-color:                  @text;
+    border:                      1px solid;
+    border-color:                @red;
+}
+
+element-icon {
+    background-color:            transparent;
+    size:                        24px;
+    cursor:                      inherit;
+}
+
+element-text {
+    background-color:            transparent;
+    text-color:                  inherit;
+    cursor:                      inherit;
+    vertical-align:              0.5;
+}
+
+mode-switcher {
+    background-color:            transparent;
+    spacing:                     8px;
+    margin:                      0px 12px 12px 12px;
+}
+
+button {
+    padding:                     8px 0px;
+    border-radius:               10px;
+    background-color:            @shade;
+    text-color:                  @dimmed;
+    cursor:                      pointer;
+    font:                        "FiraCode Nerd Font 11";
+}
+
+button selected {
+    background-color:            @selected;
+    text-color:                  @text;
+    border:                      1px solid;
+    border-color:                @red;
+}
+
+scrollbar {
+    handle-width:                4px;
+    handle-color:                @dimmed;
+    background-color:            transparent;
+    border-radius:               4px;
+}
+
+message {
+    background-color:            @shade;
+    border-radius:               12px;
+    margin:                      0px 12px 8px 12px;
+    padding:                     12px;
+}
+
+textbox {
+    background-color:            transparent;
+    text-color:                  @text;
+}
