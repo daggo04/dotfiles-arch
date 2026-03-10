@@ -1,3 +1,5 @@
+@import '../theme/monokai-octagon.css';
+
 * {
   border: none;
   border-radius: 8px;
@@ -27,19 +29,19 @@ window#waybar.hidden {
   padding: 4px 14px;
   margin: 6px 3px;
   border-radius: 12px;
-  background-color: #1e1e2e;
-  color: #e5f7fc;
+  background-color: @bg-dark;
+  color: @text;
 }
 
 #workspaces button.active {
-  color: rgba(137, 135, 255, 1);
+  color: @red;
 }
 
 #workspaces button:hover {
   box-shadow: inherit;
   text-shadow: inherit;
-  color: #1e1e2e;
-  background-color: #e5f7fc;
+  color: @bg-dark;
+  background-color: alpha(@text, 0.8);
 }
 
 #cpu,
@@ -49,8 +51,8 @@ window#waybar.hidden {
   border-radius: 0px;
   margin: 4px 0px;
   padding: 6px 10px;
-  color: #e5f7fc;
-  background-color: #1e1e2e;
+  color: @text;
+  background-color: @bg-dark;
   min-width: 50px;
 }
 
@@ -70,13 +72,13 @@ window#waybar.hidden {
 }
 
 #clock {
-  background-color: #1e1e2e;
+  background-color: @bg-dark;
   border-radius: 12px;
   padding: 6px 13px;
   margin: 4px;
   font-family: "FreeMono";
   font-size: 14px;
-  color: #e5f7fc;
+  color: @text;
 }
 
 #custom-power {
@@ -84,11 +86,12 @@ window#waybar.hidden {
   margin: 4px 4px 4px 8px;
   padding: 4px 8px 4px 6px;
   font-size: 14px;
-  color: #e5f7fc;
-  background-color: #1e1e2e;
+  color: @text;
+  background-color: @bg-dark;
 }
 
 tooltip, tooltip label {
   padding: 0px;
-  background-color: #1e1e2e;
+  background-color: alpha(@bg-dark, 0.9);
+  color: @text;
 }

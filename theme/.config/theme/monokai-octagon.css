@@ -1,0 +1,23 @@
+/* Monokai Pro Octagon - Shared Color Definitions */
+@define-color bg #282a3a;
+@define-color bg-dark #1e1f2b;
+@define-color bg-darker #161821;
+@define-color bg-alt alpha(#535763, .4);
+@define-color text #eaf2f1;
+@define-color dimmed1 #b2b9bd;
+@define-color dimmed2 #888d94;
+@define-color dimmed3 #696d77;
+@define-color dimmed4 #535763;
+@define-color dimmed5 #3a3d4b;
+@define-color red #ff657a;
+@define-color orange #ff9b5e;
+@define-color yellow #ffd76d;
+@define-color green #bad761;
+@define-color cyan #9cd1bb;
+@define-color purple #c39ac9;
+@define-color selected #ff657a;
+@define-color hover alpha(#ff657a, .4);
+@define-color urgent #ff9b5e;
+@define-color bg-solid #1e1f2b;
+@define-color dimmed #b2b9bd;
+@define-color border #3a3d4b;
