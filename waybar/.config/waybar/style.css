@@ -1,0 +1,94 @@
+* {
+  border: none;
+  border-radius: 8px;
+  min-height: 0;
+  font-family: FiraCode Nerd Font;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+window#waybar {
+  background-color: transparent;
+  transition-property: background-color;
+  transition-duration: 0.5s;
+}
+
+window#waybar.hidden {
+  opacity: 0.5;
+}
+
+#workspaces {
+  background-color: transparent;
+  margin-left: 2px;
+}
+
+#workspaces button {
+  min-width: 0;
+  padding: 4px 14px;
+  margin: 6px 3px;
+  border-radius: 12px;
+  background-color: #1e1e2e;
+  color: #e5f7fc;
+}
+
+#workspaces button.active {
+  color: rgba(137, 135, 255, 1);
+}
+
+#workspaces button:hover {
+  box-shadow: inherit;
+  text-shadow: inherit;
+  color: #1e1e2e;
+  background-color: #e5f7fc;
+}
+
+#cpu,
+#wireplumber,
+#memory,
+#tray {
+  border-radius: 0px;
+  margin: 4px 0px;
+  padding: 6px 10px;
+  color: #e5f7fc;
+  background-color: #1e1e2e;
+  min-width: 50px;
+}
+
+#cpu {
+  margin-left: -2px;
+  margin-right: -2px
+}
+
+#memory {
+  border-radius: 12px 0px 0px 12px;
+}
+
+#wireplumber {
+  border-radius: 0px 12px 12px 0px;
+  margin-right: 4px;
+  margin-left: -4px;
+}
+
+#clock {
+  background-color: #1e1e2e;
+  border-radius: 12px;
+  padding: 6px 13px;
+  margin: 4px;
+  font-family: "FreeMono";
+  font-size: 14px;
+  color: #e5f7fc;
+}
+
+#custom-power {
+  border-radius: 12px;
+  margin: 4px 4px 4px 8px;
+  padding: 4px 8px 4px 6px;
+  font-size: 14px;
+  color: #e5f7fc;
+  background-color: #1e1e2e;
+}
+
+tooltip, tooltip label {
+  padding: 0px;
+  background-color: #1e1e2e;
+}
