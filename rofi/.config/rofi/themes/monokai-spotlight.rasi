@@ -1,14 +1,16 @@
 configuration {
-    modi:                        "drun,run,filebrowser";
+    modi:                        "drun,Commands:~/.config/rofi/scripts/commands.sh,filebrowser";
     show-icons:                  true;
-    display-drun:                " ";
-    display-run:                 " ";
-    display-filebrowser:         " ";
+    display-drun:                "󰏊 Apps";
+    display-Commands:            "󰆍 Commands";
+    display-filebrowser:         "󰉋 Files";
     drun-display-format:         "{name}";
     font:                        "FiraCode Nerd Font 13";
     sort:                        true;
     sorting-method:              "fzf";
     max-history-size:            25;
+    kb-mode-next:                "Control+Tab";
+    kb-mode-previous:            "Control+ISO_Left_Tab";
 }
 
 * {
