@@ -44,10 +44,10 @@ window#waybar.hidden {
   background-color: alpha(@text, 0.8);
 }
 
-#cpu,
-#wireplumber,
+/* Resource pills: memory | cpu | gpu */
 #memory,
-#tray {
+#cpu,
+#custom-gpu {
   border-radius: 0px;
   margin: 4px 0px;
   padding: 6px 10px;
@@ -56,13 +56,54 @@ window#waybar.hidden {
   min-width: 50px;
 }
 
-#cpu {
-  margin-left: -2px;
-  margin-right: -2px
-}
-
 #memory {
   border-radius: 12px 0px 0px 12px;
+}
+
+#cpu {
+  margin-left: -2px;
+  margin-right: -2px;
+}
+
+#custom-gpu {
+  border-radius: 0px 12px 12px 0px;
+  margin-right: 8px;
+}
+
+/* Control pills: tray | network | mic | volume */
+#tray,
+#network,
+#pulseaudio.mic,
+#wireplumber {
+  border-radius: 0px;
+  margin: 4px 0px;
+  padding: 6px 10px;
+  color: @text;
+  background-color: @bg-dark;
+  min-width: 50px;
+}
+
+#tray {
+  border-radius: 0px;
+  margin-right: -2px;
+}
+
+#network {
+  border-radius: 12px 0px 0px 12px;
+  margin-right: -2px;
+}
+
+#pulseaudio.mic {
+  margin-left: -2px;
+  margin-right: -2px;
+}
+
+#pulseaudio.mic.source-muted {
+  color: @dimmed3;
+}
+
+#network.disconnected {
+  color: @dimmed3;
 }
 
 #wireplumber {

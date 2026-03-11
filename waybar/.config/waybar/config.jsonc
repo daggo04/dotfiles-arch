@@ -14,7 +14,10 @@
   "modules-right": [
     "memory",
     "cpu",
+    "custom/gpu",
     "tray",
+    "network",
+    "pulseaudio#mic",
     "wireplumber",
     "custom/power"
   ],
@@ -68,7 +71,7 @@
         ""
       ]
     },
-    "on-click": "pavucontrol",
+    "on-click": "kitty --class pulsemixer -e pulsemixer",
     "scroll-step": 1
   },
   "custom/power": {
@@ -82,5 +85,26 @@
       "suspend": "systemctl suspend",
       "hibernate": "systemctl hibernate"
     }
+  },
+  "network": {
+    "format-wifi": "󰖩 {signalStrength}%",
+    "format-ethernet": "󰈀",
+    "format-disconnected": "󰖪",
+    "tooltip-format-wifi": "{essid} ({signalStrength}%)",
+    "tooltip-format-ethernet": "{ifname}: {ipaddr}",
+    "on-click": "kitty --class nmtui -e nmtui"
+  },
+  "pulseaudio#mic": {
+    "format": "{format_source}",
+    "format-source": "󰍬 {volume}%",
+    "format-source-muted": "󰍭",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "scroll-step": 1
+  },
+  "custom/gpu": {
+    "exec": "nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits",
+    "format": "GPU {}%",
+    "interval": 5,
+    "tooltip-format": "GPU Usage: {}%"
   }
 }
