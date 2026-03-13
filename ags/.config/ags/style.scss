@@ -1,0 +1,691 @@
+@use './lib/colors.scss' as *;
+
+// ── Sidebar Window ──────────────────────────────────
+window.sidebar {
+  background-color: transparent;
+}
+
+window.sidebar {
+  background-color: transparent;
+}
+
+window.sidebar .sidebar-container {
+  background-color: rgba($bg-dark, 0.90);
+  border-left: 1px solid $border;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  border-radius: 12px 0 0 12px;
+}
+
+.sidebar-content {
+  padding: 16px;
+  color: $text;
+  font-family: "FiraCode Nerd Font";
+  font-size: 13px;
+}
+
+// ── Clock ───────────────────────────────────────────
+.clock {
+  padding: 8px 4px;
+}
+
+.clock-time {
+  font-size: 52px;
+  font-weight: 900;
+  color: $text;
+  letter-spacing: -2px;
+}
+
+.clock-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: $dimmed1;
+  letter-spacing: 0.5px;
+}
+
+// ── Section ─────────────────────────────────────────
+.section {
+  background-color: $bg;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.section-header {
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-weight: bold;
+  font-size: 13px;
+  color: $dimmed1;
+}
+
+// ── Slider Row ──────────────────────────────────────
+.slider-row {
+  min-height: 32px;
+}
+
+.slider-icon {
+  font-size: 16px;
+  min-width: 24px;
+  color: $dimmed1;
+}
+
+.slider-value {
+  font-size: 11px;
+  color: $dimmed2;
+  min-width: 36px;
+}
+
+.slider {
+  min-height: 6px;
+
+  trough {
+    min-height: 6px;
+    border-radius: 3px;
+    background-color: $dimmed5;
+  }
+
+  highlight {
+    border-radius: 3px;
+    background-color: $cyan;
+  }
+
+  slider {
+    all: unset;
+    min-width: 14px;
+    min-height: 14px;
+    border-radius: 7px;
+    background-color: $text;
+  }
+}
+
+// ── Brightness ─────────────────────────────────────
+.brightness {
+  min-height: 32px;
+}
+
+.brightness-slider {
+  min-height: 20px;
+
+  trough {
+    min-height: 20px;
+    border-radius: 10px;
+  }
+
+  highlight {
+    border-radius: 10px;
+    background-color: $yellow;
+  }
+
+  slider {
+    all: unset;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 5px;
+    background-color: $text;
+  }
+}
+
+.brightness-icon {
+  font-size: 16px;
+  color: $dimmed3;
+  min-width: 20px;
+}
+
+.brightness-value {
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+// ── Blue Light ────────────────────────────────────
+.bluelight-slider {
+  min-height: 20px;
+
+  trough {
+    min-height: 20px;
+    border-radius: 10px;
+  }
+
+  highlight {
+    border-radius: 10px;
+    background-color: $orange;
+  }
+
+  slider {
+    all: unset;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 5px;
+    background-color: $text;
+  }
+}
+
+// ── Icon Button ─────────────────────────────────────
+.icon-button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background-color: transparent;
+  color: $dimmed1;
+
+  &:hover {
+    background-color: $bg-alt;
+    color: $text;
+  }
+
+  &:active {
+    background-color: $dimmed5;
+  }
+
+  &.active {
+    color: $red;
+  }
+}
+
+// ── Media Players ──────────────────────────────────
+.media-tab-bar {
+  margin-bottom: 6px;
+}
+
+.media-tab {
+  padding: 6px;
+  border-radius: 8px;
+  background-color: transparent;
+  opacity: 0.5;
+
+  &:hover {
+    opacity: 0.8;
+    background-color: $bg-alt;
+  }
+
+  &.active {
+    opacity: 1;
+    background-color: $dimmed5;
+  }
+}
+
+.media-card-content {
+  padding: 4px 0;
+}
+
+.media-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: $text;
+}
+
+.media-artist {
+  font-size: 11px;
+  color: $dimmed2;
+}
+
+.media-controls {
+  margin-top: 4px;
+}
+
+.media-btn {
+  padding: 4px 12px;
+  font-size: 18px;
+}
+
+.media-btn.play-pause {
+  font-weight: bold;
+  font-size: 22px;
+  color: $cyan;
+}
+
+.media-cover {
+  border-radius: 18px;
+}
+
+.media-top-row {
+  margin-bottom: 2px;
+}
+
+.media-time {
+  font-size: 10px;
+  font-weight: bold;
+  color: $dimmed2;
+  min-width: 32px;
+}
+
+.media-progress {
+  padding: 6px 10px;
+  border: 1px solid $dimmed5;
+  border-radius: 20px;
+}
+
+.media-seek {
+  min-height: 8px;
+  margin: 0;
+  padding: 0;
+
+  trough {
+    min-height: 8px;
+    border-radius: 4px;
+    margin: 0;
+    padding: 0;
+  }
+
+  highlight {
+    border-radius: 2px;
+    background-color: $orange;
+  }
+
+  slider {
+    all: unset;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 5px;
+    background-color: $text;
+  }
+}
+
+.media-empty {
+  font-size: 11px;
+  color: $dimmed3;
+  padding: 4px 0;
+}
+
+// ── Audio ───────────────────────────────────────────
+.audio-section {
+  padding: 8px;
+  border: 1px solid $border;
+  border-radius: 10px;
+}
+
+.audio-channel {
+  margin: 0;
+}
+
+.audio-device-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: $dimmed1;
+}
+
+.audio-separator {
+  min-height: 0;
+}
+
+.audio-channel .slider {
+  min-height: 14px;
+
+  trough {
+    min-height: 14px;
+    border-radius: 7px;
+  }
+
+  highlight {
+    border-radius: 7px;
+  }
+
+  slider {
+    all: unset;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 5px;
+    background-color: $text;
+  }
+}
+
+.mute-btn {
+  padding: 4px 8px;
+  font-size: 16px;
+  min-width: 32px;
+}
+
+.mute-btn.active {
+  color: $red;
+}
+
+menubutton.device-dropdown-btn,
+menubutton.device-dropdown-btn > button {
+  all: unset;
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+}
+
+menubutton.device-dropdown-btn > button:hover .audio-device-name {
+  color: $text;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  color: $dimmed3;
+}
+
+.device-popover {
+  background-color: $bg-darker;
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 4px;
+
+  > contents {
+    background-color: $bg-darker;
+    border-radius: 8px;
+    padding: 4px;
+  }
+}
+
+.device-popover-list {
+  min-width: 250px;
+}
+
+.device-item {
+  padding: 6px 10px;
+  border-radius: 4px;
+  background-color: transparent;
+  color: $dimmed2;
+  font-size: 11px;
+
+  &:hover {
+    background-color: $bg-alt;
+    color: $text;
+  }
+
+  &.active {
+    color: $cyan;
+    font-weight: bold;
+  }
+}
+
+// ── System Stats ────────────────────────────────────
+.stat-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: $dimmed2;
+  min-width: 36px;
+}
+
+.stat-bar {
+  min-height: 28px;
+  margin: 0;
+  padding: 0;
+
+  trough {
+    min-height: 28px;
+    border-radius: 4px;
+    background-color: $dimmed5;
+  }
+
+  highlight {
+    border-radius: 4px;
+  }
+
+  slider {
+    all: unset;
+    min-width: 0;
+    min-height: 0;
+    background-color: transparent;
+  }
+}
+
+.stat-bar-value {
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+.system-stats box {
+  margin: 0;
+  padding: 0;
+}
+
+.stat-cpu highlight { background-color: $red; }
+.stat-mem highlight { background-color: $green; }
+.stat-gpu highlight { background-color: $purple; }
+
+// ── Power Menu ──────────────────────────────────────
+.power-menu {
+  padding: 12px 0 4px 0;
+}
+
+.power-menu .icon-button {
+  padding: 10px 16px;
+  font-size: 22px;
+  border: none;
+  border-radius: 8px;
+  background-color: transparent;
+}
+
+.power-lock { color: $purple; }
+.power-logout { color: $cyan; }
+.power-reboot { color: $orange; }
+.power-shutdown { color: $red; }
+
+.power-menu .icon-button:hover {
+  background-color: $bg-alt;
+}
+
+// ── Notifications (Sidebar) ─────────────────────────
+.notif-section {
+  min-height: 100px;
+}
+
+.notif-header-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: $dimmed2;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+// ── Card ───────────────────────────────
+.notif-card {
+  padding: 10px 10px 10px 36px;
+  border-radius: 10px;
+  background-color: $bg;
+  border: 1px solid $border;
+}
+
+.notif-shadow {
+  padding: 0;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+}
+
+// ── Stack wrapper ──────────────────────
+.notif-stack-wrapper {
+  padding: 8px 0 4px 0;
+}
+
+// ── Floating app icon ──────────────────
+.notif-icon-float {
+  background-color: $bg-dark;
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.notif-app-icon {
+  opacity: 0.8;
+}
+
+.notif-app-icon-fallback {
+  font-size: 18px;
+  color: $dimmed3;
+  opacity: 0.8;
+}
+
+.notif-count {
+  font-size: 9px;
+  font-weight: bold;
+  color: $bg-dark;
+  background-color: $cyan;
+  border-radius: 8px;
+  padding: 1px 5px;
+  min-width: 16px;
+}
+
+// ── Expanded header ────────────────────
+.notif-expanded-header {
+  padding: 2px 0;
+}
+
+.notif-app {
+  font-size: 10px;
+  font-weight: bold;
+  color: $dimmed3;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.notif-collapse-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: $dimmed3;
+
+  &:hover {
+    color: $text;
+  }
+}
+
+.notif-clear-stack-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: $dimmed4;
+
+  &:hover {
+    color: $red;
+  }
+}
+
+// ── Notification content ───────────────
+.notif-time {
+  font-size: 10px;
+  color: $dimmed4;
+}
+
+.notif-summary {
+  font-size: 12px;
+  font-weight: bold;
+  color: $text;
+}
+
+.notif-body {
+  font-size: 11px;
+  color: $dimmed2;
+}
+
+.notif-dismiss {
+  padding: 2px 6px;
+  font-size: 11px;
+  min-width: 20px;
+  min-height: 20px;
+  color: $dimmed4;
+
+  &:hover {
+    color: $red;
+  }
+}
+
+.notif-empty {
+  font-size: 13px;
+  color: $dimmed2;
+  padding: 12px 0;
+}
+
+.notif-clear-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  color: $dimmed3;
+  border: 1px solid $dimmed5;
+  border-radius: 12px;
+
+  &:hover {
+    color: $red;
+    border-color: $red;
+  }
+}
+
+.notif-actions {
+  margin-top: 4px;
+}
+
+.notif-action-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background-color: $dimmed5;
+  color: $dimmed1;
+  font-size: 11px;
+
+  &:hover {
+    background-color: $bg-alt;
+    color: $text;
+  }
+}
+
+// ── Notification Popup ─────────────────────────────
+window.notification-popup {
+  background-color: transparent;
+}
+
+.popup-container {
+  padding: 8px 12px;
+  margin-top: 40px;
+}
+
+.popup-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background-color: rgba($bg-dark, 0.95);
+  border: 1px solid $border;
+  min-width: 360px;
+  font-family: "FiraCode Nerd Font";
+}
+
+.popup-icon {
+  opacity: 0.8;
+  min-width: 48px;
+}
+
+.popup-icon-fallback {
+  font-size: 36px;
+  color: $dimmed3;
+  min-width: 48px;
+}
+
+.popup-app {
+  font-size: 11px;
+  font-weight: bold;
+  color: $dimmed2;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.popup-summary {
+  font-size: 14px;
+  font-weight: bold;
+  color: $text;
+}
+
+.popup-body {
+  font-size: 12px;
+  color: $dimmed1;
+}
+
+.popup-dismiss {
+  padding: 4px 8px;
+  font-size: 14px;
+  min-width: 24px;
+  min-height: 24px;
+  color: $dimmed4;
+
+  &:hover {
+    color: $red;
+  }
+}
+
+// ── Scrollbar ───────────────────────────────────────
+scrollbar {
+  background-color: transparent;
+
+  slider {
+    min-width: 4px;
+    border-radius: 2px;
+    background-color: $dimmed4;
+  }
+}
