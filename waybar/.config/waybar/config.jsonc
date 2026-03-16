@@ -15,11 +15,11 @@
     "memory",
     "cpu",
     "custom/gpu",
+    "custom/updates",
     "tray",
     "network",
     "pulseaudio#mic",
-    "wireplumber",
-    "custom/power"
+    "wireplumber"
   ],
   "hyprland/workspaces": {
     "all-outputs": false,
@@ -50,11 +50,11 @@
     "max-length": 10
   },
   "tray": {
-    "icon-size": 18,
+    "icon-size": 21,
     "spacing": 10
   },
   "clock": {
-    "format": "{:%I:%M}",
+    "format": "{:%H:%M}",
     "tooltip-format": "{:%H:%M}",
     "format-alt": "{:%a, %d %b %Y}"
   },
@@ -73,18 +73,6 @@
     },
     "on-click": "kitty --class pulsemixer -e pulsemixer",
     "scroll-step": 1
-  },
-  "custom/power": {
-    "format": "⏻",
-    "tooltip": false,
-    "menu": "on-click",
-    "menu-file": "~/.config/waybar/power_menu.xml",
-    "menu-actions": {
-      "shutdown": "shutdown",
-      "reboot": "reboot",
-      "suspend": "systemctl suspend",
-      "hibernate": "systemctl hibernate"
-    }
   },
   "network": {
     "format-wifi": "󰖩 {signalStrength}%",
@@ -108,5 +96,14 @@
     "format": "GPU {}%",
     "interval": 5,
     "tooltip-format": "GPU Usage: {}%"
+  },
+  "custom/updates": {
+    "exec": "checkupdates 2>/dev/null | wc -l",
+    "format": "\uf0ab {}",
+    "interval": 600,
+    "tooltip": true,
+    "tooltip-format": "{} updates available",
+    "on-click": "kitty --class updater -e bash -c 'checkupdates; echo; echo Press enter to close.; read'",
+    "signal": 8
   }
 }

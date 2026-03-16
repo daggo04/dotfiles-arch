@@ -70,8 +70,15 @@ window#waybar.hidden {
   margin-right: 8px;
 }
 
-/* Control pills: tray | network | mic | volume */
-#tray,
+#custom-updates {
+  border-radius: 12px;
+  margin: 4px 8px 4px 0px;
+  padding: 6px 10px;
+  color: @text;
+  background-color: @bg-dark;
+}
+
+/* Control pills: network | mic | volume */
 #network,
 #pulseaudio.mic,
 #wireplumber {
@@ -84,8 +91,21 @@ window#waybar.hidden {
 }
 
 #tray {
-  border-radius: 0px;
-  margin-right: -2px;
+  border-radius: 12px;
+  margin: 4px 8px 4px 0px;
+  padding: 6px 10px;
+  min-width: 0;
+  background-color: @bg-dark;
+  color: @text;
+}
+
+#tray > .needs-attention {
+  background-color: @red;
+}
+
+#tray menu {
+  background-color: @bg-dark;
+  color: @text;
 }
 
 #network {
@@ -120,15 +140,6 @@ window#waybar.hidden {
   font-family: "FreeMono";
   font-size: 14px;
   color: @text;
-}
-
-#custom-power {
-  border-radius: 12px;
-  margin: 4px 4px 4px 8px;
-  padding: 4px 8px 4px 6px;
-  font-size: 14px;
-  color: @text;
-  background-color: @bg-dark;
 }
 
 tooltip, tooltip label {
