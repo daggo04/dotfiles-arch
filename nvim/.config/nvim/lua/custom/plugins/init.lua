@@ -39,8 +39,26 @@ return {
       { '<leader>ar', '<cmd>ClaudeCode --resume<cr>', desc = 'Resume Claude' },
       { '<leader>ab', '<cmd>ClaudeCodeAdd %<cr>', desc = 'Add current buffer' },
       { '<leader>as', '<cmd>ClaudeCodeSend<cr>', mode = 'v', desc = 'Send to Claude' },
-      { '<leader>aa', '<cmd>ClaudeCodeDiffAccept<cr>', desc = 'Accept diff' },
-      { '<leader>ad', '<cmd>ClaudeCodeDiffDeny<cr>', desc = 'Deny diff' },
+      {
+        '<leader>aa',
+        function()
+          vim.cmd('ClaudeCodeDiffAccept')
+          vim.defer_fn(function()
+            vim.cmd('ClaudeCodeFocus')
+          end, 20)
+        end,
+        desc = 'Accept diff',
+      },
+      {
+        '<leader>ad',
+        function()
+          vim.cmd('ClaudeCodeDiffDeny')
+          vim.defer_fn(function()
+            vim.cmd('ClaudeCodeFocus')
+          end, 20)
+        end,
+        desc = 'Deny diff',
+      },
     },
   },
 }

@@ -3,6 +3,7 @@ import Gdk from "gi://Gdk"
 import GLib from "gi://GLib"
 import Mpris from "gi://AstalMpris"
 import GdkPixbuf from "gi://GdkPixbuf"
+import Gio from "gi://Gio"
 import cairo from "cairo"
 
 function clearBox(box: Gtk.Box) {
@@ -87,26 +88,56 @@ function CoverArt(player: Mpris.Player): Gtk.Widget {
     drawing.set_content_height(COVER_HEIGHT)
   }
 
-  function updateArt() {
-    const path = player.cover_art || ""
-    const url = player.art_url || ""
-    let filePath = ""
-    if (path) filePath = path
-    else if (url && url.startsWith("file://")) filePath = url.replace("file://", "")
-
-    if (filePath) {
-      try {
-        currentPixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
-      } catch (_) {
-        currentPixbuf = null
-      }
+  function loadFromFile(filePath: string) {
+    try {
+      currentPixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
       updateSize(filePath)
-    } else {
+    } catch (_) {
       currentPixbuf = null
       drawing.set_content_width(COVER_HEIGHT)
       drawing.set_content_height(COVER_HEIGHT)
     }
     drawing.queue_draw()
+  }
+
+  function updateArt() {
+    const path = player.cover_art || ""
+    const url = player.art_url || ""
+
+    if (path) {
+      loadFromFile(path)
+    } else if (url && url.startsWith("file://")) {
+      loadFromFile(url.replace("file://", ""))
+    } else if (url && (url.startsWith("https://") || url.startsWith("http://"))) {
+      // Download remote cover art
+      const file = Gio.File.new_for_uri(url)
+      file.load_contents_async(null, (_src: any, res: Gio.AsyncResult) => {
+        try {
+          const [ok, contents] = file.load_contents_finish(res)
+          if (ok && contents) {
+            const loader = new GdkPixbuf.PixbufLoader()
+            loader.write(contents)
+            loader.close()
+            currentPixbuf = loader.get_pixbuf()
+            if (currentPixbuf) {
+              const aspect = currentPixbuf.get_width() / currentPixbuf.get_height()
+              const height = COVER_HEIGHT
+              const width = Math.min(Math.round(height * aspect), COVER_MAX_WIDTH)
+              drawing.set_content_width(width)
+              drawing.set_content_height(height)
+            }
+          }
+        } catch (_) {
+          currentPixbuf = null
+        }
+        drawing.queue_draw()
+      })
+    } else {
+      currentPixbuf = null
+      drawing.set_content_width(COVER_HEIGHT)
+      drawing.set_content_height(COVER_HEIGHT)
+      drawing.queue_draw()
+    }
   }
 
   updateArt()
@@ -310,8 +341,10 @@ function PlayerCard(player: Mpris.Player): Gtk.Box {
 
 function iconNameForPlayer(player: Mpris.Player): string {
   const entry = player.entry || ""
-  if (entry) return entry.replace(/\.desktop$/, "")
-  return (player.identity || "media").toLowerCase().split(" ")[0]
+  const name = entry ? entry.replace(/\.desktop$/, "") : (player.identity || "media").toLowerCase().split(" ")[0]
+  // spotify-launcher registers as "spotify" but the icon is "spotify-launcher"
+  if (name === "spotify") return "spotify-launcher"
+  return name
 }
 
 export default function MediaPlayers() {
@@ -358,7 +391,11 @@ export default function MediaPlayers() {
     clearBox(tabBar)
     clearBox(cardContainer)
     tabButtons.length = 0
-    players = mpris.get_players()
+    players = mpris.get_players().filter((p) => {
+      // Spotify's embedded Chromium registers a duplicate MPRIS player
+      const bus = p.bus_name || ""
+      return !bus.includes("chromium")
+    })
 
     if (players.length === 0) {
       cardContainer.append(
