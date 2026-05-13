@@ -78,8 +78,26 @@ window#waybar.hidden {
   background-color: @bg-dark;
 }
 
-/* Control pills: network | mic | volume */
+/* Dictation indicator */
+#custom-dictation {
+  border-radius: 12px;
+  margin: 4px 8px 4px 0px;
+  padding: 6px 10px;
+  color: @dimmed3;
+  background-color: @bg-dark;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  transition: color 150ms ease-in-out, border-color 150ms ease-in-out;
+}
+
+#custom-dictation.recording {
+  color: #E75143;
+  border-bottom-color: #E75143;
+}
+
+/* Control pills: network | bluetooth | mic | volume */
 #network,
+#bluetooth,
 #pulseaudio.mic,
 #wireplumber {
   border-radius: 0px;
@@ -113,16 +131,25 @@ window#waybar.hidden {
   margin-right: -2px;
 }
 
+#bluetooth,
 #pulseaudio.mic {
   margin-left: -2px;
   margin-right: -2px;
+}
+
+#bluetooth {
+  min-width: 0;
+  padding: 6px 8px;
 }
 
 #pulseaudio.mic.source-muted {
   color: @dimmed3;
 }
 
-#network.disconnected {
+#network.disconnected,
+#bluetooth.off,
+#bluetooth.disabled,
+#bluetooth.no-controller {
   color: @dimmed3;
 }
 
