@@ -1,9 +1,10 @@
 configuration {
-    modi:                        "drun,Commands:~/.config/rofi/scripts/commands.sh,filebrowser";
+    modi:                        "drun,Commands:~/.config/rofi/scripts/commands.sh,filebrowser,keybinds:~/.config/hypr/scripts/keybinds.sh";
     show-icons:                  true;
     display-drun:                "󰏊 Apps";
     display-Commands:            "󰆍 Commands";
     display-filebrowser:         "󰉋 Files";
+    display-keybinds:            "󰌌 Keybinds";
     drun-display-format:         "{name}";
     font:                        "FiraCode Nerd Font 13";
     sort:                        true;
