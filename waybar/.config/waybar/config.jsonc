@@ -118,12 +118,12 @@
     "escape": true
   },
   "custom/updates": {
-    "exec": "checkupdates 2>/dev/null | wc -l",
+    "exec": "checkupdates-grouped 2>/dev/null | wc -l",
     "format": "\uf0ab {}",
     "interval": 600,
     "tooltip": true,
     "tooltip-format": "{} updates available",
-    "on-click": "kitty --class updater -e bash -c 'checkupdates; echo; echo Press enter to close.; read'",
+    "on-click": "kitty --class updater -e bash -c 'checkupdates-grouped; echo; echo Press enter to close.; read'",
     "signal": 8
   },
   "include": []

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# checkupdates-grouped — `checkupdates`, but the VLC split-package swarm
+# (libvlc + vlc + the ~75 vlc-plugin-* / vlc-plugins-* subpackages) is collapsed
+# into a single line. A single VLC version bump then shows as one update instead
+# of dozens. Args are forwarded to checkupdates unchanged.
+#
+# Consumed by the Waybar custom/updates module (badge count + on-click list).
+#
+# Note: checkupdates exits 2 when there are no pending updates; we don't treat
+# that as an error — awk just receives empty input and prints nothing.
+#
+# Do NOT redirect checkupdates' stderr here. checkupdates colorizes (passes
+# --color always to pacman -Qu) only when its stderr is a tty [[ -t 2 ]]; killing
+# fd 2 strips all colour from the interactive popup. Let the caller decide:
+# Waybar's badge adds its own 2>/dev/null (count, no colour needed), while the
+# kitty popup keeps a real tty on stderr and stays colourful.
+
+checkupdates "$@" | awk '
+    {
+        # Strip ANSI colour from a copy of the package name for matching only,
+        # so pass-through lines keep their colour in the terminal popup.
+        key = $1
+        gsub(/\033\[[0-9;]*m/, "", key)
+    }
+    key ~ /^(lib)?vlc([-_]|$)/ {
+        n++
+        ver = $NF
+        gsub(/\033\[[0-9;]*m/, "", ver)
+        next
+    }
+    { print }
+    END {
+        if (n == 1)      printf "vlc  ->  %s\n", ver
+        else if (n > 1)  printf "vlc  (+%d pkgs)  ->  %s\n", n - 1, ver
+    }
+'
