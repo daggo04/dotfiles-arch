@@ -12,7 +12,6 @@ vim.pack.add({
 	-- Div
 	{ src = 'https://github.com/nvim-mini/mini.nvim' },
 	{ src = 'https://github.com/folke/which-key.nvim'}
-
 })
 
 
@@ -107,7 +106,7 @@ vim.lsp.config('lua_ls', {
 		diagnostics = { globals = { 'vim' } },
 		workspace = {
 			library = vim.api.nvim_get_runtime_file('', true),
-			checkThidParty = false,
+			checkThirdParty = false,
 			},
 		},
 	},
