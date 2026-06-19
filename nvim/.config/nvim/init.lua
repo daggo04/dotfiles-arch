@@ -1,17 +1,23 @@
 -- ---- Plugins ----
 vim.pack.add({
-	-- Theme
+	-- Apparence
 	{ src = 'https://github.com/loctvl842/monokai-pro.nvim' },
+	{ src = 'https://github.com/MunifTanjim/nui.nvim' },
 
 	-- Diagnostics
 	{ src = 'https://github.com/rachartier/tiny-inline-diagnostic.nvim'},
 	{ src = 'https://github.com/folke/lazydev.nvim' },
 
 	-- File manager
+	{ src = 'https://github.com/nvim-neo-tree/neo-tree.nvim' },
+
+	-- Git
+	{ src = 'https://github.com/lewis6991/gitsigns.nvim' },
 
 	-- Div
 	{ src = 'https://github.com/nvim-mini/mini.nvim' },
-	{ src = 'https://github.com/folke/which-key.nvim'}
+	{ src = 'https://github.com/folke/which-key.nvim' },
+	{ src = 'https://github.com/nvim-lua/plenary.nvim' }
 })
 
 
@@ -21,8 +27,17 @@ vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.scrolloff = 10
 vim.opt.termguicolors = true
+vim.opt.signcolumn = 'yes'
 
 -- Make split windows easy to tell apart; re-applied on every theme load
+-- mix two #rrggbb colors; t=0 -> a, t=1 -> b
+local function blend(a, b, t)
+	local function rgb(h) return tonumber(h:sub(2,3),16), tonumber(h:sub(4,5),16), tonumber(h:sub(6,7),16) end
+	local ar,ag,ab = rgb(a)
+	local br,bg,bb = rgb(b)
+	local function mix(x,y) return math.floor(x+(y-x)*t + 0.5) end
+	return string.format('#%02x%02x%02x', mix(ar,br), mix(ag,bg), mix(ab,bb))
+end
 local ui_group = vim.api.nvim_create_augroup('UiTweaks', { clear = true })
 vim.api.nvim_create_autocmd('ColorScheme', {
 	group = ui_group,
@@ -30,13 +45,24 @@ vim.api.nvim_create_autocmd('ColorScheme', {
 	callback = function()
 		local p = require('monokai-pro').get_palette()
 		vim.api.nvim_set_hl(0, 'WinSeparator', { fg = p.dimmed3, bold = true })
-		vim.api.nvim_set_hl(0, 'NormalNC', { bg = p.dark1 })
+		vim.api.nvim_set_hl(0, 'NormalNC', { bg = blend(p.background, p.dark1, 0.5) })
 	end,
 })
 
 vim.cmd.colorscheme('monokai-pro-octagon')
 require('mini.icons').setup()
-
+require('mini.icons').mock_nvim_web_devicons()
+require('gitsigns').setup({
+	on_attach = function(bufnr)
+		local gs = require('gitsigns')
+		vim.keymap.set('n', ']c', function()
+			gs.nav_hunk('next')
+		end, { buffer = bufnr, desc = 'Jump to next hunk of git changes' })
+		vim.keymap.set('n', '[c', function()
+			gs.nav_hunk('prev')
+		end, { buffer = bufnr, desc = 'Jump to prev hunk of git changes' })
+	end,
+})
 
 -- Search and macros
 vim.opt.ignorecase = true
@@ -57,6 +83,27 @@ require('tiny-inline-diagnostic').setup({
 		}
 	}
 })
+
+-- File Explorer
+require('neo-tree').setup({
+	filesystem = {
+		follow_current_file = { enabled = true },
+		hijack_netrw_behavior = 'open_default',
+		use_libuv_file_watcher = true,
+		group_empty_dirs = true,
+		filtered_items = {
+			visible = true,
+			hide_dotfiles = false,
+			hide_gitignored = false,
+		},
+    },
+	default_component_configs = {
+		indent = {
+			padding = 0,
+			indent_size = 2,
+		},
+	},
+  })
 
 -- ---- Default Keybinds ---- 
 vim.g.mapleader = ' '
@@ -105,7 +152,6 @@ vim.lsp.config('lua_ls', {
 		runtime = { version = 'LuaJIT' },
 		diagnostics = { globals = { 'vim' } },
 		workspace = {
-			library = vim.api.nvim_get_runtime_file('', true),
 			checkThirdParty = false,
 			},
 		},
