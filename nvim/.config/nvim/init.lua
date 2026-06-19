@@ -1,23 +1,21 @@
+local gh = require('util').GH
 -- ---- Plugins ----
 vim.pack.add({
 	-- Apparence
-	{ src = 'https://github.com/loctvl842/monokai-pro.nvim' },
-	{ src = 'https://github.com/MunifTanjim/nui.nvim' },
+	{ src = gh 'loctvl842/monokai-pro.nvim' },
+	{ src = gh 'folke/todo-comments.nvim'},
 
 	-- Diagnostics
-	{ src = 'https://github.com/rachartier/tiny-inline-diagnostic.nvim'},
-	{ src = 'https://github.com/folke/lazydev.nvim' },
-
-	-- File manager
-	{ src = 'https://github.com/nvim-neo-tree/neo-tree.nvim' },
+	{ src = gh 'rachartier/tiny-inline-diagnostic.nvim'},
+	{ src = gh 'folke/lazydev.nvim' },
 
 	-- Git
-	{ src = 'https://github.com/lewis6991/gitsigns.nvim' },
+	{ src = gh 'lewis6991/gitsigns.nvim' },
 
 	-- Div
-	{ src = 'https://github.com/nvim-mini/mini.nvim' },
-	{ src = 'https://github.com/folke/which-key.nvim' },
-	{ src = 'https://github.com/nvim-lua/plenary.nvim' }
+	{ src = gh 'nvim-mini/mini.nvim' },
+	{ src = gh 'folke/which-key.nvim' },
+	{ src = gh 'nvim-lua/plenary.nvim' }
 })
 
 
@@ -53,7 +51,7 @@ vim.api.nvim_create_autocmd('ColorScheme', {
 
 vim.cmd.colorscheme('monokai-pro-octagon')
 require('mini.icons').setup()
-require('mini.icons').mock_nvim_web_devicons()
+MiniIcons.mock_nvim_web_devicons()
 require('mini.notify').setup()
 vim.notify = require('mini.notify').make_notify()
 require('gitsigns').setup({
@@ -80,7 +78,7 @@ vim.opt.autoread = true
 vim.opt.updatetime = 200
 
 
--- Diagnostics and automcomplete
+-- Diagnostics and autocomplete
 require('lazydev').setup()
 require('tiny-inline-diagnostic').setup({
 	preset = 'modern',
@@ -93,26 +91,8 @@ require('tiny-inline-diagnostic').setup({
 	}
 })
 
--- File Explorer
-require('neo-tree').setup({
-	filesystem = {
-		follow_current_file = { enabled = true },
-		hijack_netrw_behavior = 'open_default',
-		use_libuv_file_watcher = true,
-		group_empty_dirs = true,
-		filtered_items = {
-			visible = true,
-			hide_dotfiles = false,
-			hide_gitignored = false,
-		},
-    },
-	default_component_configs = {
-		indent = {
-			padding = 0,
-			indent_size = 2,
-		},
-	},
-  })
+-- Organization
+require('todo-comments').setup()
 
 -- ---- Default Keybinds ---- 
 vim.g.mapleader = ' '
@@ -122,6 +102,14 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>', { desc = 'When in a search, 
 -- Navigation
 vim.keymap.set('n', '<C-d>', '<C-d>zz', { desc = 'Scroll down half the window (centered)'})
 vim.keymap.set('n', '<C-u>', '<C-u>zz', { desc = 'Scroll up half the window (centered)'})
+vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
+vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+local td = require('todo-comments')
+vim.keymap.set('n', ']t', function() td.jump_next() end, {desc = 'Next todo comment' })
+vim.keymap.set('n', '[t', function() td.jump_prev() end, {desc = 'Prev todo comment' })
+
 
 -- (w)Yanking
 vim.keymap.set({'n', 'v'}, '<leader>y', '"+y', { desc = 'Yank to system clipboard'})
@@ -136,7 +124,9 @@ end, { desc = ' Help for word under cursor' })
 
 
 -- What was that key again? 
-require('which-key').setup()
+require('which-key').setup {
+	delay = 0
+}
 
 
 -- ---- Autocommands ---- 
