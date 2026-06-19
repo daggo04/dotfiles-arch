@@ -1,5 +1,34 @@
 local gh = require('util').GH
 -- ---- Plugins ----
+-- This autocommand runs after a plugin is installed or updated and
+--  runs the appropriate build command for that plugin if necessary.
+--
+-- See `:help vim.pack-events`
+local run_build = require('util').run_build
+vim.api.nvim_create_autocmd('PackChanged', {
+	callback = function(ev)
+		local name = ev.data.spec.name
+    	local kind = ev.data.kind
+    	if kind ~= 'install' and kind ~= 'update' then return end
+
+    	if name == 'telescope-fzf-native.nvim' and vim.fn.executable 'make' == 1 then
+        	run_build(name, { 'make' }, ev.data.path)
+    	return
+    end
+
+    if name == 'LuaSnip' then
+    	if vim.fn.has 'win32' ~= 1 and vim.fn.executable 'make' == 1 then run_build(name, { 'make', 'install_jsregexp' }, ev.data.path) end
+        return
+    end
+
+    if name == 'nvim-treesitter' then
+    	if not ev.data.active then vim.cmd.packadd 'nvim-treesitter' end
+    	vim.cmd 'TSUpdate'
+    	return
+    	end
+	end,
+  })
+
 vim.pack.add({
 	-- Apparence
 	{ src = gh 'loctvl842/monokai-pro.nvim' },
@@ -127,6 +156,14 @@ end, { desc = ' Help for word under cursor' })
 require('which-key').setup {
 	delay = 0
 }
+require('which-key').add({
+	{ '<leader>t', group = 'Toggles' },
+})
+
+-- Toggles
+vim.keymap.set('n', '<leader>th', function()
+	vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = 0 }), { bufnr = 0 })
+end, { desc = '[T]oggle Inlay [H]ints' })
 
 
 -- ---- Autocommands ---- 
@@ -163,32 +200,25 @@ if timer then
 end
 
 
-
 -- ---- LSP ----
-vim.lsp.config('lua_ls', {
-	cmd = { 'lua-language-server' } ,
-	filetypes = { 'lua' },
-	root_markers = { '.luarc.json', '.luarc.jsonc', 'luarc.yaml', '.git' },
-	settings = {
-		Lua = {
-		runtime = { version = 'LuaJIT' },
-		diagnostics = { globals = { 'vim' } },
-		workspace = {
-			checkThirdParty = false,
-			},
-		},
-	},
-})
-vim.lsp.enable('lua_ls')
+vim.lsp.enable({'lua_ls', 'vtsls'})
+vim.lsp.config('*', {
+	capabilities = vim.lsp.protocol.make_client_capabilities(),
+	})
 
--- announce language servers as they attach
+
 local lsp_group = vim.api.nvim_create_augroup('UserLsp', { clear = true })
 vim.api.nvim_create_autocmd('LspAttach', {
 	group = lsp_group,
 	callback = function(args)
 		local client = vim.lsp.get_client_by_id(args.data.client_id)
 		if client then
+			-- Announce LSP's as they attach
 			vim.notify('LSP attached: ' .. client.name, vim.log.levels.INFO)
+			-- Inlays for those that support it
+			if client:supports_method('textDocument/inlayHint') then
+				vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
+			end
 		end
 	end,
 })

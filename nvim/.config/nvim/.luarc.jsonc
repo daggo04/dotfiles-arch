@@ -2,6 +2,6 @@
 	"$schema":
 	"https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
     "runtime.version": "LuaJIT",
-    "diagnostics.globals": ["vim"],
+    "diagnostics.globals": ["vim", "MiniIcons"], // Set globals that are resolved at runtime
     "workspace.checkThirdParty": false
 }
