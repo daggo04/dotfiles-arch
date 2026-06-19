@@ -5,14 +5,13 @@ return {
 	settings = {
 		typescript = {
 			inlayHints = {
-			includeInlayVariableTypeHints = true,
-			includeInlayFunctionLikeReturnTypeHints = true,
-			includeInlayFunctionParameterTypeHints = true,
-			includeInlayParameterNameHints = 'all',
-			includeInlayPropertyDeclarationTypeHints = true,
-			includeInlayEnumMemberValueHints = true,
+				includeInlayVariableTypeHints = true,
+				includeInlayFunctionLikeReturnTypeHints = true,
+				includeInlayFunctionParameterTypeHints = true,
+				includeInlayParameterNameHints = 'all',
+				includeInlayPropertyDeclarationTypeHints = true,
+				includeInlayEnumMemberValueHints = true,
 			},
 		},
 	},
 }
-

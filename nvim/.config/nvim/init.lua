@@ -8,47 +8,52 @@ local run_build = require('util').run_build
 vim.api.nvim_create_autocmd('PackChanged', {
 	callback = function(ev)
 		local name = ev.data.spec.name
-    	local kind = ev.data.kind
-    	if kind ~= 'install' and kind ~= 'update' then return end
+		local kind = ev.data.kind
+		if kind ~= 'install' and kind ~= 'update' then
+			return
+		end
 
-    	if name == 'telescope-fzf-native.nvim' and vim.fn.executable 'make' == 1 then
-        	run_build(name, { 'make' }, ev.data.path)
-    	return
-    end
+		if name == 'telescope-fzf-native.nvim' and vim.fn.executable('make') == 1 then
+			run_build(name, { 'make' }, ev.data.path)
+			return
+		end
 
-    if name == 'LuaSnip' then
-    	if vim.fn.has 'win32' ~= 1 and vim.fn.executable 'make' == 1 then run_build(name, { 'make', 'install_jsregexp' }, ev.data.path) end
-        return
-    end
+		if name == 'LuaSnip' then
+			if vim.fn.has('win32') ~= 1 and vim.fn.executable('make') == 1 then
+				run_build(name, { 'make', 'install_jsregexp' }, ev.data.path)
+			end
+			return
+		end
 
-    if name == 'nvim-treesitter' then
-    	if not ev.data.active then vim.cmd.packadd 'nvim-treesitter' end
-    	vim.cmd 'TSUpdate'
-    	return
-    	end
+		if name == 'nvim-treesitter' then
+			if not ev.data.active then
+				vim.cmd.packadd('nvim-treesitter')
+			end
+			vim.cmd('TSUpdate')
+			return
+		end
 	end,
-  })
+})
 
 vim.pack.add({
 	-- Apparence
-	{ src = gh 'loctvl842/monokai-pro.nvim' },
-	{ src = gh 'folke/todo-comments.nvim'},
+	{ src = gh('loctvl842/monokai-pro.nvim') },
+	{ src = gh('folke/todo-comments.nvim') },
 
 	-- Diagnostics
-	{ src = gh 'rachartier/tiny-inline-diagnostic.nvim'},
-	{ src = gh 'folke/lazydev.nvim' },
+	{ src = gh('rachartier/tiny-inline-diagnostic.nvim') },
+	{ src = gh('folke/lazydev.nvim') },
 
 	-- Git
-	{ src = gh 'lewis6991/gitsigns.nvim' },
+	{ src = gh('lewis6991/gitsigns.nvim') },
 
 	-- Div
-	{ src = gh 'nvim-mini/mini.nvim' },
-	{ src = gh 'folke/which-key.nvim' },
-	{ src = gh 'nvim-lua/plenary.nvim' }
+	{ src = gh('nvim-mini/mini.nvim') },
+	{ src = gh('folke/which-key.nvim') },
+	{ src = gh('nvim-lua/plenary.nvim') },
 })
 
-
--- ---- Config ---- 
+-- ---- Config ----
 -- Appearance
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -61,11 +66,15 @@ vim.opt.shiftwidth = 4
 -- Make split windows easy to tell apart; re-applied on every theme load
 -- mix two #rrggbb colors; t=0 -> a, t=1 -> b
 local function blend(a, b, t)
-	local function rgb(h) return tonumber(h:sub(2,3),16), tonumber(h:sub(4,5),16), tonumber(h:sub(6,7),16) end
-	local ar,ag,ab = rgb(a)
-	local br,bg,bb = rgb(b)
-	local function mix(x,y) return math.floor(x+(y-x)*t + 0.5) end
-	return string.format('#%02x%02x%02x', mix(ar,br), mix(ag,bg), mix(ab,bb))
+	local function rgb(h)
+		return tonumber(h:sub(2, 3), 16), tonumber(h:sub(4, 5), 16), tonumber(h:sub(6, 7), 16)
+	end
+	local ar, ag, ab = rgb(a)
+	local br, bg, bb = rgb(b)
+	local function mix(x, y)
+		return math.floor(x + (y - x) * t + 0.5)
+	end
+	return string.format('#%02x%02x%02x', mix(ar, br), mix(ag, bg), mix(ab, bb))
 end
 local ui_group = vim.api.nvim_create_augroup('UiTweaks', { clear = true })
 vim.api.nvim_create_autocmd('ColorScheme', {
@@ -99,13 +108,12 @@ require('gitsigns').setup({
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
--- Controls 
+-- Controls
 vim.opt.mouse = 'a'
 
 -- Behaviour
 vim.opt.autoread = true
 vim.opt.updatetime = 200
-
 
 -- Diagnostics and autocomplete
 require('lazydev').setup()
@@ -115,47 +123,48 @@ require('tiny-inline-diagnostic').setup({
 		multilines = {
 			enabled = true,
 			always_show = true,
-			severity = {vim.diagnostic.severity.ERROR},
-		}
-	}
+			severity = { vim.diagnostic.severity.ERROR },
+		},
+	},
 })
 
 -- Organization
 require('todo-comments').setup()
 
--- ---- Default Keybinds ---- 
+-- ---- Default Keybinds ----
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
-vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>', { desc = 'When in a search, clear the search highlight'})
+vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>', { desc = 'When in a search, clear the search highlight' })
 
 -- Navigation
-vim.keymap.set('n', '<C-d>', '<C-d>zz', { desc = 'Scroll down half the window (centered)'})
-vim.keymap.set('n', '<C-u>', '<C-u>zz', { desc = 'Scroll up half the window (centered)'})
+vim.keymap.set('n', '<C-d>', '<C-d>zz', { desc = 'Scroll down half the window (centered)' })
+vim.keymap.set('n', '<C-u>', '<C-u>zz', { desc = 'Scroll up half the window (centered)' })
 vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
 vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 local td = require('todo-comments')
-vim.keymap.set('n', ']t', function() td.jump_next() end, {desc = 'Next todo comment' })
-vim.keymap.set('n', '[t', function() td.jump_prev() end, {desc = 'Prev todo comment' })
-
+vim.keymap.set('n', ']t', function()
+	td.jump_next()
+end, { desc = 'Next todo comment' })
+vim.keymap.set('n', '[t', function()
+	td.jump_prev()
+end, { desc = 'Prev todo comment' })
 
 -- (w)Yanking
-vim.keymap.set({'n', 'v'}, '<leader>y', '"+y', { desc = 'Yank to system clipboard'})
-vim.keymap.set({'n', 'v'}, '<leader>p', '"+p', { desc = 'Paste from system clipboard'})
-vim.keymap.set({'n', 'v'}, '<leader>d', '"+d', { desc = 'Cut to system clipboard'})
+vim.keymap.set({ 'n', 'v' }, '<leader>y', '"+y', { desc = 'Yank to system clipboard' })
+vim.keymap.set({ 'n', 'v' }, '<leader>p', '"+p', { desc = 'Paste from system clipboard' })
+vim.keymap.set({ 'n', 'v' }, '<leader>d', '"+d', { desc = 'Cut to system clipboard' })
 
 -- Help and diagnostics
 vim.keymap.set('n', '<leader>K', function()
 	vim.cmd.help(vim.fn.expand('<cword>'))
 end, { desc = ' Help for word under cursor' })
 
-
-
--- What was that key again? 
-require('which-key').setup {
-	delay = 0
-}
+-- What was that key again?
+require('which-key').setup({
+	delay = 0,
+})
 require('which-key').add({
 	{ '<leader>t', group = 'Toggles' },
 })
@@ -165,8 +174,7 @@ vim.keymap.set('n', '<leader>th', function()
 	vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = 0 }), { bufnr = 0 })
 end, { desc = '[T]oggle Inlay [H]ints' })
 
-
--- ---- Autocommands ---- 
+-- ---- Autocommands ----
 -- - yanking my chains
 local yank_group = vim.api.nvim_create_augroup('YankHighlight', { clear = true })
 vim.api.nvim_create_autocmd('TextYankPost', {
@@ -194,18 +202,20 @@ vim.api.nvim_create_autocmd('FileChangedShellPost', {
 
 local timer = vim.uv.new_timer()
 if timer then
-	timer:start(1000, 1000, vim.schedule_wrap(function()
-		vim.cmd('checktime')
-	end))
+	timer:start(
+		1000,
+		1000,
+		vim.schedule_wrap(function()
+			vim.cmd('checktime')
+		end)
+	)
 end
 
-
 -- ---- LSP ----
-vim.lsp.enable({'lua_ls', 'vtsls'})
+vim.lsp.enable({ 'lua_ls', 'vtsls' })
 vim.lsp.config('*', {
 	capabilities = vim.lsp.protocol.make_client_capabilities(),
-	})
-
+})
 
 local lsp_group = vim.api.nvim_create_augroup('UserLsp', { clear = true })
 vim.api.nvim_create_autocmd('LspAttach', {
@@ -222,5 +232,3 @@ vim.api.nvim_create_autocmd('LspAttach', {
 		end
 	end,
 })
-
-
