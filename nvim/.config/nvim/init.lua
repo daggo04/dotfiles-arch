@@ -212,7 +212,7 @@ if timer then
 end
 
 -- ---- LSP ----
-vim.lsp.enable({ 'lua_ls', 'vtsls' })
+vim.lsp.enable({ 'lua_ls', 'vtsls', 'eslint' })
 vim.lsp.config('*', {
 	capabilities = vim.lsp.protocol.make_client_capabilities(),
 })
