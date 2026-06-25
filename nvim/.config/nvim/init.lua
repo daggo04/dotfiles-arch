@@ -167,6 +167,7 @@ require('which-key').setup({
 })
 require('which-key').add({
 	{ '<leader>t', group = 'Toggles' },
+	{ '<leader>l', group = 'Language Commands' },
 })
 
 -- Toggles
