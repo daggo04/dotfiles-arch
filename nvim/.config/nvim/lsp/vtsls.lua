@@ -13,5 +13,15 @@ return {
 				includeInlayEnumMemberValueHints = true,
 			},
 		},
+		javascript = {
+			inlayHints = {
+				includeInlayVariableTypeHints = true,
+				includeInlayFunctionLikeReturnTypeHints = true,
+				includeInlayFunctionParameterTypeHints = true,
+				includeInlayParameterNameHints = 'all',
+				includeInlayPropertyDeclarationTypeHints = true,
+				includeInlayEnumMemberValueHints = true,
+			},
+		},
 	},
 }
