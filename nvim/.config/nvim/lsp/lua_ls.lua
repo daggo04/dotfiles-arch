@@ -6,7 +6,7 @@ return {
 		Lua = {
 			runtime = { version = 'LuaJIT' },
 			diagnostics = { globals = { 'vim' } },
-			workspace = { checkThirdParty = false },
+			workspace = { checkThirdParty = false, ignoreDir = { 'node_modules' } },
 			format = { enable = false },
 		},
 	},
