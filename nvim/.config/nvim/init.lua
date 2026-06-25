@@ -166,14 +166,25 @@ require('which-key').setup({
 	delay = 0,
 })
 require('which-key').add({
+	-- No explicit icon: which-key's built-in desc rules already icon any group
+	-- whose name matches "search"/"toggle", and those glyphs render in this font.
+	{ '<leader>s', group = 'Search' },
 	{ '<leader>t', group = 'Toggles' },
-	{ '<leader>l', group = 'Language Commands' },
+	-- icon is a function → which-key re-evaluates it per render, so the group
+	-- shows whatever filetype you're currently in (mini.icons supplies glyph + color).
+	{
+		'<leader>l',
+		group = 'Language Commands',
+		icon = function()
+			return { cat = 'filetype', name = vim.bo.filetype }
+		end,
+	},
 })
 
 -- Toggles
 vim.keymap.set('n', '<leader>th', function()
 	vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = 0 }), { bufnr = 0 })
-end, { desc = '[T]oggle Inlay [H]ints' })
+end, { desc = 'Toggle Inlay [H]ints' })
 
 -- ---- Autocommands ----
 -- - yanking my chains
