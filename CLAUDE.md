@@ -10,6 +10,39 @@ Remote: https://github.com/daggo04/dotfiles-arch
 - AGS sidebar development (`ags/` — GTK4, notifications, media, audio, brightness, blue light, system stats, power menu)
 - Neovim plugin authoring and config tweaks (kickstart-based)
 - General Linux/CachyOS setup notes, kernel/driver quirks, install scripts
+- Claude Code agent definitions (`claude/` — see below; cross-platform, not Linux-only)
+
+## The `claude/` package
+
+Stow package for user-scope Claude Code config. `stow claude` links it into
+`~/.claude/`, same as any other package here — `~/.claude/` already exists, so Stow
+unfolds the tree and links the individual entries rather than the whole directory.
+
+Contents: the `design-doc` agent, which builds visual design documents as Claude
+Code Artifacts, plus its `design-doc-kit/` (page template, diagram primitives and
+pre-publish checklist, two worked example pages, and the standalone-export script).
+
+**This package is not Linux-only.** `~/.claude/agents/` is the same path on both
+systems, so it applies on the Windows box too.
+
+**Windows has no Stow and no symlinks here** — Developer Mode is off and the account
+isn't admin, so `New-Item -ItemType SymbolicLink` fails. The Windows box therefore
+keeps **copies** rather than links:
+
+```bash
+# repo -> live (after pulling changes made on Linux)
+cp -r claude/.claude/agents/. ~/.claude/agents/
+
+# live -> repo (after editing on Windows)
+cp -r ~/.claude/agents/design-doc.md ~/.claude/agents/design-doc-kit claude/.claude/agents/
+```
+
+Because they are copies, the two can drift silently. Whichever side you edited last
+is authoritative — copy in that direction before doing anything else.
+
+**Keep this package publishable.** The repo is public, so nothing here should carry
+employer-specific detail. The example pages deliberately use a generic CI/build
+pipeline domain for that reason; if you re-generate them, keep them generic.
 
 ## System context
 

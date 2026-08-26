@@ -1,0 +1,411 @@
+<!--
+  BASE TEMPLATE for design-doc artifacts — Monokai Pro (Filter Octagon).
+
+  Copy this file, replace <title>, the header block and the CONTENT section.
+  Delete component CSS you do not use.
+
+  Do NOT add <!doctype>, <html>, <head> or <body> — the publisher injects them.
+  Run make-standalone.sh afterwards for the shareable copy.
+
+  SINGLE THEME BY DESIGN. This page commits to Octagon and does not follow the
+  viewer's colour-scheme preference, so there is no prefers-color-scheme block
+  and no [data-theme] block. Every colour is painted explicitly, which is what
+  lets the page hold on any host background. Do not "add dark mode" — it is
+  already the only mode.
+
+  TWO PALETTES, TWO JOBS:
+   - --acc-*  Monokai accents. Single-hue roles ONLY: links, rules, callout
+              borders, one highlighted path, an emphasised value. One at a time.
+   - --s1..4  Validated categorical series for charts. Monokai's accents CANNOT
+              do this job — they are separated by brightness, not hue, and
+              collapse under colour-vision deficiency when forced into one
+              lightness band. These four are validated against #282a3a:
+              worst adjacent CVD ΔE 8.4, normal-vision 19.8, all ≥3:1.
+              Cap scatter/bubble/small-multiple charts at the first THREE.
+-->
+<title>REPLACE ME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    /* ---- Monokai Pro (Filter Octagon) base ramp ---- */
+    --ground:   #282a3a;
+    --deep:     #1e1f2b;
+    --surface:  #3a3d4b;
+    --rule:     #535763;
+    --dim:      #696d77;
+    --muted:    #888d94;
+    --ink-2:    #b2b9bd;
+    --ink:      #eaf2f1;
+    --hairline: rgba(234,242,241,0.10);
+
+    /* ---- Monokai accents: single-hue roles only ---- */
+    --acc-red:    #ff657a;
+    --acc-orange: #ff9b5e;
+    --acc-yellow: #ffd76d;
+    --acc-green:  #bad761;
+    --acc-cyan:   #9cd1bb;
+    --acc-purple: #c39ac9;
+    --acc:        var(--acc-cyan);   /* the page's default accent */
+
+    /* ---- chart series: validated on #282a3a, fixed order, never cycled ---- */
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+
+    /* ---- sequential ramp: near-zero recedes toward the ground ---- */
+    --seq-100: #0d366b; --seq-200: #104281; --seq-300: #184f95;
+    --seq-400: #256abf; --seq-500: #3987e5; --seq-600: #6da7ec; --seq-700: #9ec5f4;
+
+    /* ---- status: reserved, never reused as a series colour ---- */
+    --good: #bad761; --warning: #ffd76d; --critical: #ff657a;
+
+    --f-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);      /* explicit: a transparent body borrows the host ground */
+    color: var(--ink-2);
+    font-family: var(--f-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 clamp(1rem, 4vw, 2.5rem) 5rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 60rem; margin: 0 auto; }
+  .col  { max-width: 64ch; }
+
+  h1, h2, h3 { color: var(--ink); margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; }
+  h2 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; }
+  h3 { font-size: 0.95rem; font-weight: 600; }
+  p  { margin: 0; }
+  strong { color: var(--ink); font-weight: 600; }
+
+  a { color: var(--acc); text-underline-offset: 2px; }
+  a:hover { color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+  code {
+    font-family: var(--f-mono); font-size: 0.85em;
+    background: var(--deep); border: 1px solid var(--hairline);
+    color: var(--acc-yellow); padding: 0.1em 0.35em; border-radius: 3px;
+  }
+
+  pre {
+    font-family: var(--f-mono); font-size: 0.8rem; margin: 0;
+    background: var(--deep); color: var(--ink);
+    border: 1px solid var(--hairline); border-left: 3px solid var(--acc);
+    padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  li::marker { color: var(--dim); }
+
+  .eyebrow {
+    font-family: var(--f-mono); font-size: 0.66rem; font-weight: 600;
+    letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted);
+  }
+
+  /* ---------- header + work links ---------- */
+  header.top {
+    padding: 3.5rem 0 1.5rem; display: flex; flex-direction: column; gap: 1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .lede { font-size: 1.1rem; line-height: 1.55; max-width: 58ch; }
+
+  /* Links to the work this doc describes. Include branch/PR and Asana where
+     they exist; omit any that genuinely does not. Never ship a dead href. */
+  .worklinks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .wl {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--f-mono); font-size: 0.76rem; text-decoration: none;
+    background: var(--surface); border: 1px solid var(--rule);
+    color: var(--ink-2); padding: 0.3rem 0.6rem; border-radius: 3px;
+  }
+  .wl:hover { border-color: var(--acc); color: var(--ink); }
+  .wl-k { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.66rem; }
+  .wl-branch:hover { border-color: var(--acc-green); }
+  .wl-pr:hover     { border-color: var(--acc-purple); }
+  .wl-asana:hover  { border-color: var(--acc-red); }
+
+  /* ---------- repo-root picker + file references ----------
+     A published page cannot link to a reader's filesystem, and browsers block
+     file:// navigation from https. What DOES work is an editor deep link, so
+     the reader supplies their checkout root once and every file reference
+     becomes a vscode:// link. The root is remembered per viewer in
+     localStorage; it never leaves their browser. */
+  .rootbar {
+    display: none;                      /* JS shows it only if the page has file refs */
+    flex-wrap: wrap; align-items: center; gap: 0.5rem;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--acc-cyan);
+    padding: 0.5rem 0.7rem; font-size: 0.8rem;
+  }
+  .rootbar.on { display: flex; }
+  .rootbar label { color: var(--muted); font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .rootbar input {
+    flex: 1 1 20rem; min-width: 12rem;
+    background: var(--deep); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 3px;
+    padding: 0.3rem 0.5rem; font-family: var(--f-mono); font-size: 0.78rem;
+  }
+  .rootbar input::placeholder { color: var(--dim); }
+  .rootbar button {
+    background: var(--deep); color: var(--ink-2); cursor: pointer;
+    border: 1px solid var(--rule); border-radius: 3px;
+    padding: 0.3rem 0.7rem; font-family: var(--f-mono); font-size: 0.76rem;
+  }
+  .rootbar button:hover { border-color: var(--acc-cyan); color: var(--ink); }
+  .rootbar .hint { color: var(--dim); flex-basis: 100%; font-size: 0.74rem; }
+
+  .fileref {
+    font-family: var(--f-mono); font-size: 0.82em;
+    background: var(--deep); border: 1px solid var(--hairline);
+    padding: 0.1em 0.4em; border-radius: 3px;
+    color: var(--ink-2); text-decoration: none;
+    display: inline-flex; align-items: baseline; gap: 0.35em;
+  }
+  .fileref .ln { color: var(--muted); }
+  .fileref.linked { color: var(--acc-cyan); border-color: var(--rule); cursor: pointer; }
+  .fileref.linked:hover { border-color: var(--acc-cyan); color: var(--ink); }
+  .fileref .copy {
+    border: none; background: none; padding: 0; cursor: pointer;
+    color: var(--dim); font-family: var(--f-mono); font-size: 0.9em;
+  }
+  .fileref .copy:hover { color: var(--acc-cyan); }
+
+  /* ---------- structure ---------- */
+  section { margin-top: 3rem; display: flex; flex-direction: column; gap: 1rem; }
+  .sec-h {
+    display: flex; align-items: baseline; gap: 0.85rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--rule); padding-bottom: 0.45rem;
+  }
+  .sec-h .job { font-family: var(--f-mono); font-size: 0.7rem; color: var(--muted); margin-left: auto; }
+
+  footer {
+    margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--rule);
+    font-size: 0.85rem; color: var(--muted);
+  }
+
+  /* ---------- figures ---------- */
+  figure {
+    margin: 0; background: var(--surface); border: 1px solid var(--hairline);
+    padding: 1.1rem 1.1rem 0.9rem; display: flex; flex-direction: column; gap: 0.8rem;
+  }
+  figcaption { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  svg.chart { display: block; width: 100%; height: auto; overflow: visible; }
+  .scroller { overflow-x: auto; }
+
+  /* ---------- stat tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); }
+  .tile { background: var(--surface); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .tile .label { font-size: 0.8rem; color: var(--muted); }
+  .tile .value { font-size: 2rem; font-weight: 600; color: var(--ink); line-height: 1; letter-spacing: -0.02em; }
+  .tile .foot  { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+  .delta { font-weight: 600; font-family: var(--f-mono); font-size: 0.78rem; }
+  .delta.up { color: var(--good); } .delta.down { color: var(--critical); }
+
+  /* ---------- legend ---------- */
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.82rem; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+  /* ---------- table view ---------- */
+  table.dtable { border-collapse: collapse; width: 100%; font-size: 0.82rem; min-width: 34rem; }
+  table.dtable th, table.dtable td { padding: 0.35rem 0.6rem; text-align: right; border-bottom: 1px solid var(--hairline); }
+  table.dtable th:first-child, table.dtable td:first-child { text-align: left; }
+  table.dtable thead th { color: var(--muted); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid var(--rule); }
+  table.dtable td { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  table.dtable td:first-child { font-family: var(--f-sans); color: var(--ink); }
+  table.dtable tbody tr:last-child td { border-bottom: none; font-weight: 600; color: var(--ink); }
+  table.dtable .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 0.4rem; }
+
+  /* ---------- note cards ---------- */
+  .notegrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); }
+  .note { background: var(--surface); padding: 1rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; }
+  .note.warn { border-left: 3px solid var(--acc-orange); }
+  .note.good { border-left: 3px solid var(--acc-green); }
+
+  /* ---------- tooltip ---------- */
+  #tip {
+    position: fixed; z-index: 50; pointer-events: none;
+    background: var(--deep); color: var(--ink); border: 1px solid var(--rule);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+    padding: 0.5rem 0.65rem; font-size: 0.78rem; line-height: 1.45;
+    border-radius: 4px; opacity: 0; transition: opacity 90ms linear; max-width: 15rem;
+  }
+  #tip.on { opacity: 1; }
+  #tip .t-title { font-weight: 600; margin-bottom: 0.2rem; display: block; }
+  #tip .t-row { display: flex; align-items: center; gap: 0.4rem; font-variant-numeric: tabular-nums; }
+  #tip .t-row b { margin-left: auto; font-weight: 600; }
+
+  .tickcol { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<!-- ======================= CONTENT ======================= -->
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">EYEBROW</span>
+    <h1>REPLACE ME</h1>
+    <p class="lede">One or two sentences stating what this page is and who it is for.</p>
+
+    <!-- Delete any row that does not apply. Never leave a placeholder href. -->
+    <nav class="worklinks" aria-label="Related work">
+      <a class="wl wl-branch" href="https://github.com/ORG/REPO/tree/BRANCH"><span class="wl-k">branch</span>BRANCH</a>
+      <a class="wl wl-pr"     href="https://github.com/ORG/REPO/pull/NNN"><span class="wl-k">pr</span>#NNN</a>
+      <a class="wl wl-asana"  href="https://app.asana.com/0/PROJECT/TASK"><span class="wl-k">asana</span>TASK</a>
+    </nav>
+
+    <!-- Shows itself only when the page contains .fileref elements. Delete
+         nothing: if there are no file references it stays hidden. -->
+    <div class="rootbar" id="rootbar">
+      <label for="rootin">Repo root</label>
+      <input id="rootin" type="text" spellcheck="false" placeholder="C:\src\my-project">
+      <button type="button" id="rootset">Set</button>
+      <button type="button" id="rootclear">Clear</button>
+      <span class="hint">Stored in this browser only. File references below become links that open in VS Code.</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-h"><h2>Section heading</h2><span class="job">optional right-aligned label</span></div>
+    <p class="col">Lead with the figure; let this text support it. File references look
+      like <a class="fileref" data-path="src/app/config/framework.ts" data-line="42">core/src/app/framework.ts<span class="ln">:42</span><button class="copy" type="button" aria-label="Copy path">⧉</button></a>
+      and are always relative to the repo root.</p>
+  </section>
+
+  <footer>Provenance, caveats, or a note on the data.</footer>
+
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+/* Shared helpers. Lift chart builders from example-specimen-page.html — they
+   are written against these. */
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var tip = document.getElementById("tip");
+
+  window.DD = {
+    NS: NS,
+    el: function (n, a) {
+      var e = document.createElementNS(NS, n);
+      for (var k in a) if (a.hasOwnProperty(k)) e.setAttribute(k, a[k]);
+      return e;
+    },
+    fmt: function (n) { return n.toLocaleString("en-US"); },
+    cssv: function (name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    },
+    showTip: function (html, ev) {
+      tip.innerHTML = html;
+      tip.classList.add("on");
+      var pad = 14, r = tip.getBoundingClientRect();
+      var x = ev.clientX + pad, y = ev.clientY + pad;
+      if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - pad;
+      if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - pad;
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+    },
+    hideTip: function () { tip.classList.remove("on"); },
+    row: function (color, label, value) {
+      return '<span class="t-row"><i class="swatch" style="background:' + color + '"></i>' +
+             label + '<b>' + value + '</b></span>';
+    }
+  };
+
+  window.addEventListener("scroll", window.DD.hideTip, { passive: true });
+})();
+
+/* ---------- repo-root picker ----------
+   Author a file reference like this — path is ALWAYS relative to the repo or
+   scenario root, never an absolute path from your own machine:
+
+     <a class="fileref" data-path="src/app/config/framework.ts"
+        data-line="42">framework.ts<span class="ln">:42</span><button
+        class="copy" type="button" aria-label="Copy path">⧉</button></a>
+
+   With no root set the reference renders as inert code. Once the reader sets
+   their root it becomes a vscode:// deep link. Nothing is sent anywhere. */
+(function () {
+  "use strict";
+  var KEY = "dd.repoRoot";
+  var bar = document.getElementById("rootbar");
+  var input = document.getElementById("rootin");
+  var refs = [].slice.call(document.querySelectorAll(".fileref"));
+  if (!bar || !input || !refs.length) return;   // no file references — stay hidden
+  bar.classList.add("on");
+
+  /* localStorage throws outright in some contexts (thumbnailers, blocked site
+     data), so every access is guarded and absence is a valid state. */
+  function read()  { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function write(v){ try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch (e) {} }
+
+  function trimRoot(r) { return r.replace(/[\\/]+$/, ""); }
+
+  /* native path, for display and copying — follows the reader's own separator */
+  function nativePath(root, rel) {
+    var sep = trimRoot(root).indexOf("\\") > -1 ? "\\" : "/";
+    return trimRoot(root) + sep + rel.replace(/[\\/]/g, sep);
+  }
+  /* editor deep link — always forward slashes, drive letter included */
+  function editorUri(root, rel, line) {
+    var p = (trimRoot(root) + "/" + rel).replace(/\\/g, "/");
+    return "vscode://file/" + p + (line ? ":" + line : "");
+  }
+
+  function render() {
+    var root = read();
+    input.value = root;
+    refs.forEach(function (a) {
+      var rel  = a.getAttribute("data-path") || "";
+      var line = a.getAttribute("data-line") || "";
+      if (root && rel) {
+        a.setAttribute("href", editorUri(root, rel, line));
+        a.classList.add("linked");
+        a.title = nativePath(root, rel) + (line ? ":" + line : "");
+      } else {
+        a.removeAttribute("href");
+        a.classList.remove("linked");
+        a.title = rel + " — set the repo root above to open this in your editor";
+      }
+    });
+  }
+
+  function commit() { write(input.value.trim()); render(); }
+
+  document.getElementById("rootset").addEventListener("click", commit);
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); commit(); } });
+  document.getElementById("rootclear").addEventListener("click", function () {
+    write(""); input.value = ""; render();
+  });
+
+  /* copy-to-clipboard on the ⧉ button; must not trigger the surrounding link */
+  document.addEventListener("click", function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest(".fileref .copy") : null;
+    if (!btn) return;
+    e.preventDefault(); e.stopPropagation();
+    var a = btn.closest(".fileref");
+    var root = read(), rel = a.getAttribute("data-path") || "";
+    var text = root ? nativePath(root, rel) : rel;
+    var original = btn.textContent;
+    function flash(msg) { btn.textContent = msg; setTimeout(function () { btn.textContent = original; }, 1200); }
+    try {
+      navigator.clipboard.writeText(text).then(function () { flash("✓"); }, function () { flash("✕"); });
+    } catch (err) { flash("✕"); }
+  });
+
+  render();
+})();
+</script>

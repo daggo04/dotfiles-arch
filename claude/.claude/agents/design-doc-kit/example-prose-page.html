@@ -1,0 +1,483 @@
+<title>Artifacts vs Hand-Rolled HTML</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ground:      #F1F5F4;
+    --surface:     #FFFFFF;
+    --surface-2:   #E7EDEC;
+    --ink:         #0E1A1C;
+    --body:        #33474A;
+    --muted:       #6B8285;
+    --rule:        #CFDCDB;
+    --rule-strong: #A8BCBB;
+    --accent:      #0E5F66;
+    --accent-ink:  #FFFFFF;
+    --accent-soft: #DCEBEA;
+    --gain:        #3A6B45;
+    --gain-soft:   #DFEBE0;
+    --limit:       #8F4F22;
+    --limit-soft:  #F2E4D9;
+
+    --f-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+    --f-body:    "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+    --col: 68ch;
+    --pad: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0B1214;
+      --surface:     #121E20;
+      --surface-2:   #1A282A;
+      --ink:         #E9F1F0;
+      --body:        #B2C5C4;
+      --muted:       #7B9294;
+      --rule:        #24373A;
+      --rule-strong: #3A5155;
+      --accent:      #63C7C6;
+      --accent-ink:  #06181A;
+      --accent-soft: #16302F;
+      --gain:        #8DC79A;
+      --gain-soft:   #16291B;
+      --limit:       #D79A6C;
+      --limit-soft:  #2B1D13;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0B1214;
+    --surface:     #121E20;
+    --surface-2:   #1A282A;
+    --ink:         #E9F1F0;
+    --body:        #B2C5C4;
+    --muted:       #7B9294;
+    --rule:        #24373A;
+    --rule-strong: #3A5155;
+    --accent:      #63C7C6;
+    --accent-ink:  #06181A;
+    --accent-soft: #16302F;
+    --gain:        #8DC79A;
+    --gain-soft:   #16291B;
+    --limit:       #D79A6C;
+    --limit-soft:  #2B1D13;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--body);
+    font-family: var(--f-body);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 var(--pad) 5rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 62rem; margin: 0 auto; }
+  .col  { max-width: var(--col); }
+
+  h1, h2, h3 {
+    font-family: var(--f-display);
+    color: var(--ink);
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h1 { font-size: clamp(2.1rem, 5.5vw, 3.1rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+  h2 { font-size: clamp(1.35rem, 3vw, 1.7rem); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  h3 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.005em; }
+
+  p { margin: 0; }
+  strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: 0.86em;
+    background: var(--surface-2);
+    color: var(--ink);
+    padding: 0.12em 0.38em;
+    border-radius: 3px;
+  }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---- title block ---- */
+
+  .titleblock {
+    border-top: 3px solid var(--ink);
+    border-bottom: 1px solid var(--rule);
+    padding: 1.5rem 0 1.75rem;
+    margin-top: 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .lede {
+    font-size: 1.2rem;
+    line-height: 1.5;
+    color: var(--body);
+    max-width: 56ch;
+  }
+
+  .specrow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .spec {
+    background: var(--surface);
+    padding: 0.7rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .spec dt { font-family: var(--f-mono); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .spec dd { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 0.92rem; color: var(--ink); }
+
+  /* ---- sections ---- */
+
+  section { margin-top: 3.25rem; display: flex; flex-direction: column; gap: 1rem; }
+  .stack  { display: flex; flex-direction: column; gap: 1rem; }
+  .stack-tight { display: flex; flex-direction: column; gap: 0.6rem; }
+
+  .rule-h {
+    display: flex;
+    align-items: baseline;
+    gap: 0.9rem;
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: 0.5rem;
+  }
+  .rule-h .eyebrow { flex: none; }
+
+  /* ---- comparison table ---- */
+
+  .scroller { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+
+  table { border-collapse: collapse; width: 100%; min-width: 42rem; font-size: 0.95rem; }
+
+  th, td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule-strong);
+    position: sticky;
+    top: 0;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  td:first-child { font-family: var(--f-display); font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .c-hand { color: var(--body); }
+  .c-art  { color: var(--ink); background: var(--accent-soft); }
+
+  /* ---- numbered flow ---- */
+
+  .flow { display: flex; flex-direction: column; gap: 0; border-left: 2px solid var(--rule-strong); }
+
+  .step { display: grid; grid-template-columns: 2.6rem 1fr; gap: 0 1rem; padding: 0 0 1.4rem 1.25rem; }
+  .step:last-child { padding-bottom: 0; }
+
+  .step-n {
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-ink);
+    background: var(--accent);
+    width: 1.65rem;
+    height: 1.65rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    margin-top: 0.1rem;
+  }
+
+  .step-b { display: flex; flex-direction: column; gap: 0.3rem; }
+
+  /* ---- capability cards ---- */
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .card  { background: var(--surface); padding: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .card .api { font-family: var(--f-mono); font-size: 0.72rem; color: var(--accent); font-weight: 500; }
+  .card p { font-size: 0.94rem; }
+
+  /* ---- chips + notes ---- */
+
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+  .chip {
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.25rem 0.55rem;
+    border-radius: 2px;
+    border: 1px solid transparent;
+  }
+  .chip-gain  { background: var(--gain-soft);  color: var(--gain);  border-color: var(--gain); }
+  .chip-limit { background: var(--limit-soft); color: var(--limit); border-color: var(--limit); }
+
+  .note {
+    border-left: 3px solid var(--limit);
+    background: var(--surface);
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.95rem;
+  }
+  .note.good { border-left-color: var(--gain); }
+
+  .note h3 { font-size: 0.95rem; }
+
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  li::marker { color: var(--muted); }
+
+  pre {
+    font-family: var(--f-mono);
+    font-size: 0.8rem;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 0.8rem 1rem;
+    overflow-x: auto;
+    margin: 0;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.85rem;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="titleblock">
+    <div class="stack-tight">
+      <span class="eyebrow">Tooling evaluation</span>
+      <h1>Artifacts vs Hand-Rolled HTML</h1>
+    </div>
+    <p class="lede">Teams here have started writing <code>.html</code> design docs by hand, because nobody wants to read another wall of terminal output. Claude Code already ships the hosted version of that idea. Here is what it does, what it costs, and where it stops.</p>
+
+    <dl class="specrow">
+      <div class="spec"><dt>Ships in</dt><dd>Claude Code 2.1.183+</dd></div>
+      <div class="spec"><dt>Plans</dt><dd>Pro · Max · Team · Enterprise</dd></div>
+      <div class="spec"><dt>Default visibility</dt><dd>Private to author</dd></div>
+      <div class="spec"><dt>Page shape</dt><dd>One static page</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">The short version</span></div>
+    <div class="col stack">
+      <p>An artifact is a live web page Claude publishes from a session to a private URL on claude.ai. You keep working; the page updates in place at the same URL. Each publish is retained as a version, and you choose which version other people see.</p>
+      <p>Against a hand-rolled <code>.html</code> file, the page content itself is a wash — you can write good HTML either way. Everything <em>around</em> the file is what differs: where it lives, how someone else opens it, what happens when it changes, and whether anyone can tell you it's wrong without starting a new thread in Teams.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">Where they differ</span></div>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th scope="col">Concern</th><th scope="col">Hand-rolled .html</th><th scope="col">Artifact</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Delivery</td><td class="c-hand">Attach the file, or commit it and hope they pull</td><td class="c-art">A link that opens in a browser</td></tr>
+          <tr><td>Updating</td><td class="c-hand">Resend the file; recipients hold stale copies</td><td class="c-art">Republish to the same URL; open views update in place</td></tr>
+          <tr><td>History</td><td class="c-hand">Whatever git you remembered to do</td><td class="c-art">Every publish is a version; you pick what viewers see</td></tr>
+          <tr><td>Access</td><td class="c-hand">Whoever received the file</td><td class="c-art">Private, named people, whole org, or public link</td></tr>
+          <tr><td>Review</td><td class="c-hand">A separate chat thread</td><td class="c-art">Comments on the page; <code>@claude</code> can reply and edit</td></tr>
+          <tr><td>Finding it later</td><td class="c-hand">Search your downloads folder</td><td class="c-art"><code>/artifacts</code>, or the gallery on claude.ai</td></tr>
+          <tr><td>Live data</td><td class="c-hand">Frozen at write time</td><td class="c-art">Can call connectors on each view</td></tr>
+          <tr><td>Governance</td><td class="c-hand">None — it's a file on a laptop</td><td class="c-art">Audit log, retention policy, Compliance API</td></tr>
+          <tr><td>Build cost</td><td class="c-hand">A convention each team reinvents</td><td class="c-art">Already built</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="col" style="font-size:0.92rem;color:var(--muted);">The last row is the one that matters for the decision. Nobody was going to build the middle six columns.</p>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">How the flow works</span></div>
+    <div class="flow">
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-b">
+          <h3>Ask, or let Claude offer</h3>
+          <p>Name the output in plain language — "make an artifact that walks through this PR with the diff annotated". Claude may also publish unprompted when the output suits a page better than scrollback.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-b">
+          <h3>Claude writes a file, then asks to publish</h3>
+          <p>The page is written to a real <code>.html</code> or <code>.md</code> file in your project first, so you keep the source. Publishing prompts for permission the first time; republishing the same artifact does not ask again.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-b">
+          <h3>The URL opens</h3>
+          <p>Your browser opens the new page. <code>Ctrl+]</code> reopens the most recent artifact from the terminal. Set <code>CLAUDE_CODE_ARTIFACT_AUTO_OPEN=0</code> if you'd rather it stayed put.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">4</span>
+        <div class="step-b">
+          <h3>It updates in place</h3>
+          <p>Ask for a revision, or let a long task republish as it goes. Same URL, new version, and anyone with the page open sees it change. From another session, hand Claude the URL or attach it with <code>/artifacts</code> — otherwise you get a second artifact instead of a new version.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">Who can see it</span></div>
+    <div class="col stack">
+      <p>A new artifact is visible only to its author. Sharing is a control in the page header, and what it offers depends on the plan.</p>
+      <ul>
+        <li><strong>Within the organization</strong> — on Team and Enterprise, grant access to named people or to everyone. Viewers sign in as members of the org.</li>
+        <li><strong>Publicly</strong> — a link anyone can open with no sign-in. Off by default on Team and Enterprise until an Owner enables external sharing. On Pro and Max it is the only sharing route.</li>
+        <li><strong>Editors</strong> — on Team and Enterprise you can promote someone from viewer to editor. They republish from their own Claude session by giving Claude the URL.</li>
+      </ul>
+      <p>Signed-in colleagues see who published a page. Someone opening a public link from outside the org sees <code>Content is user-generated and unverified.</code> instead of a name.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">Review without a side channel</span></div>
+    <div class="col stack">
+      <p>This is the part that a hand-rolled file cannot reach. Share an artifact inside the org and viewers can comment directly on the page. Mentioning <code>@claude</code> in a thread activates it, and Claude can then read the thread and reply — editing the page when the comment asks for a change.</p>
+      <p>While the publishing session is still running, Claude picks up sent comments as they arrive and can answer on its own; your permission mode decides whether it replies directly or waits for you. <code>/tasks</code> lists the artifacts a session is watching. Needs Claude Code 2.1.221 for reading comments, 2.1.228 for unprompted replies, and a Team or Enterprise plan — publicly shared artifacts take no comments at all.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">Runtime capabilities</span></div>
+    <p class="col">A published page is static HTML by default. It can request specific runtime abilities at publish time, granted by the viewer's browser session. Three are available on this account.</p>
+    <div class="cards">
+      <div class="card">
+        <span class="api">claude.use("artifact")</span>
+        <h3>The page remembers</h3>
+        <p>Polls, sign-up sheets, checklists, triage boards. An interaction regenerates the document and publishes it as a new version, so the page itself is the record. Read-only viewers get a read-only view.</p>
+      </div>
+      <div class="card">
+        <span class="api">claude.use("mcp")</span>
+        <h3>Live data on open</h3>
+        <p>The page calls claude.ai connectors each time someone views it, using <em>that viewer's</em> credentials — so two people can correctly see different data. A page declaring connectors can never be shared publicly.</p>
+      </div>
+      <div class="card">
+        <span class="api">claude.use("downloads")</span>
+        <h3>Hand the viewer a file</h3>
+        <p>Offer a generated file for download. The viewer confirms and may decline, so it needs an explicit affordance rather than a save on load.</p>
+      </div>
+    </div>
+    <p class="col" style="font-size:0.92rem;color:var(--muted);">Runtime contract 0.2.21. The capability set is account-specific — check before assuming a page can use one.</p>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">Where it stops</span></div>
+    <div class="col stack">
+      <div class="chips">
+        <span class="chip chip-limit">One page only</span>
+        <span class="chip chip-limit">No backend</span>
+        <span class="chip chip-limit">Strict CSP</span>
+        <span class="chip chip-limit">16 MiB rendered</span>
+        <span class="chip chip-limit">.html / .htm / .md</span>
+      </div>
+      <p>An artifact is a capture of work, not an application. Everything is inlined into one self-contained document: no relative links, no routes, no server. External requests are blocked apart from Google Fonts and connector calls, so CSS and JavaScript are inlined and images embedded as data URIs.</p>
+      <p>That last point drives cost. A styled page burns noticeably more output tokens than the same content as terminal text, and embedded raster images are the main culprit — prefer SVG or CSS for diagrams.</p>
+      <div class="note">
+        <h3>If you need a real internal tool</h3>
+        <p>Anything with a backend, stored form submissions, or its own authentication belongs on your own infrastructure. Artifacts do not compete with that, and stretching one to fit will fight the CSP the whole way.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">For whoever owns the tenancy</span></div>
+    <div class="col stack">
+      <p>Artifact content sits on Anthropic-operated infrastructure, readable only by authenticated members of the publishing organization unless shared publicly. Owners control it from claude.ai admin settings.</p>
+      <ul>
+        <li><strong>On/off</strong> — Settings › Claude Code › Capabilities. On Enterprise with RBAC it can be scoped per role.</li>
+        <li><strong>Public sharing</strong> — a separate toggle, off by default. Turning it back off blocks existing public links without changing each artifact's audience.</li>
+        <li><strong>Connector calls</strong> — its own toggle again, under Settings › Capabilities.</li>
+        <li><strong>Retention</strong> — separate periods for private and shared artifacts, under Data &amp; privacy controls.</li>
+        <li><strong>Audit</strong> — publish, share and delete land in the audit log as <code>claude_artifact_*</code> events; the Compliance API can list, read and delete.</li>
+        <li><strong>Egress</strong> — the viewer loads pages from a sandboxed <code>*.claudeusercontent.com</code> origin. Allowlist it alongside <code>claude.ai</code> or artifacts will not render.</li>
+      </ul>
+      <p>Blocked for orgs running customer-managed encryption keys, HIPAA, or Zero Data Retention.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule-h"><span class="eyebrow">Before your team sees any of this</span></div>
+    <div class="col stack">
+      <div class="note">
+        <h3>One environment variable silently disables the whole feature</h3>
+        <p><code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC</code> gates artifacts, not just update checks. While it is set, Claude writes a local HTML file and never mentions why — which is exactly the failure that makes people go build their own thing instead.</p>
+      </div>
+      <p>It is a presence-only variable: <strong>any</strong> non-empty value counts, including <code>0</code>. It has to be removed or emptied.</p>
+<pre><code># check
+echo "[$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC]"
+
+# clear it for good
+[Environment]::SetEnvironmentVariable(
+  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", $null, "User")</code></pre>
+      <div class="note good">
+        <h3>Then open a new terminal window, not just a new Claude session</h3>
+        <p>Windows Terminal snapshots its environment at launch and ignores the change broadcast. A tab that has been open for days keeps handing the old value to every process it starts, so restarting Claude alone changes nothing.</p>
+      </div>
+      <p>If the tool still doesn't load after that, the remaining gate is the org toggle, and it needs an Owner.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Compiled from the Claude Code artifacts documentation and a live 2.1.245 install.</span>
+    <span>Verify plan-tier and admin details against your own tenancy before circulating.</span>
+  </footer>
+
+</div>
