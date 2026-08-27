@@ -1,6 +1,7 @@
 import { Astal, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib"
+import Gio from "gi://Gio"
 
 // Light: #888d94 ($dimmed2), Dark: #161821 ($bg-darker)
 const LIGHT = [0x88, 0x8d, 0x94]
@@ -74,6 +75,7 @@ function gradientMarkup(val: number): string {
 export default function BlueLight() {
   let currentValue = loadState()
   let debounceId: number | null = null
+  let syncing = false
 
   const slider = new Astal.Slider({
     hexpand: true,
@@ -152,8 +154,22 @@ export default function BlueLight() {
     if (val !== currentValue) {
       currentValue = val
       updateLabel(val)
-      applyTemp(val)
+      if (!syncing) applyTemp(val)
     }
+  })
+
+  // sun-adapt writes this same file as it walks the tint through the day.
+  // Follow it so the slider never shows a stale value.
+  const monitor = Gio.File.new_for_path(STATE_FILE)
+    .monitor_file(Gio.FileMonitorFlags.NONE, null)
+  monitor.connect("changed", () => {
+    const val = loadState()
+    if (val === currentValue) return
+    syncing = true
+    currentValue = val
+    slider.value = val
+    updateLabel(val)
+    syncing = false
   })
 
   // Apply saved state on startup
@@ -164,6 +180,7 @@ export default function BlueLight() {
 
   const container = new Gtk.Box({ hexpand: true, cssClasses: ["brightness"] })
   container.append(overlay)
+  ;(container as any)._blueLightMonitor = monitor  // keep alive past GC
 
   return container
 }

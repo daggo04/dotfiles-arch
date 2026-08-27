@@ -1,6 +1,7 @@
 import { Astal, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib"
+import Gio from "gi://Gio"
 
 // Light: #888d94 ($dimmed2), Dark: #161821 ($bg-darker)
 const LIGHT = [0x88, 0x8d, 0x94]
@@ -25,6 +26,27 @@ function charThreshold(charIndex: number, totalChars: number): number {
   if (totalChars <= 1) return (COVER_START + COVER_END) / 2
   const t = charIndex / (totalChars - 1)
   return COVER_START + t * (COVER_END - COVER_START)
+}
+
+// sun-adapt writes this file too, so it is the shared source of truth for
+// "what is the monitor actually set to". brightness-get / waybar read it.
+const STATE_FILE = GLib.get_user_cache_dir() + "/monitor-brightness"
+
+function saveState(val: number) {
+  try {
+    GLib.file_set_contents(STATE_FILE, `${val}\n`)
+  } catch (_) {}
+}
+
+function loadState(): number | null {
+  try {
+    const [ok, contents] = GLib.file_get_contents(STATE_FILE)
+    if (ok && contents) {
+      const val = parseInt(new TextDecoder().decode(contents).trim())
+      if (isFinite(val) && val >= 0 && val <= 100) return val
+    }
+  } catch (_) {}
+  return null
 }
 
 function gradientMarkup(val: number): string {
@@ -53,6 +75,7 @@ function gradientMarkup(val: number): string {
 export default function Brightness() {
   let currentValue = 40
   let debounceId: number | null = null
+  let syncing = false
 
   const slider = new Astal.Slider({
     hexpand: true,
@@ -113,9 +136,12 @@ export default function Brightness() {
     .then((out) => {
       const parts = out.trim().split(/\s+/)
       const val = parseInt(parts[3]) || 40
+      syncing = true
       currentValue = val
       slider.value = val
       updateLabel(val)
+      saveState(val)
+      syncing = false
     })
     .catch(() => {})
 
@@ -125,7 +151,9 @@ export default function Brightness() {
     }
     debounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
       debounceId = null
-      execAsync(["ddcutil", "setvcp", "10", String(Math.round(val))])
+      const rounded = Math.round(val)
+      saveState(rounded)
+      execAsync(["ddcutil", "setvcp", "10", String(rounded)])
         .catch(() => {})
       return GLib.SOURCE_REMOVE
     })
@@ -136,12 +164,27 @@ export default function Brightness() {
     if (val !== currentValue) {
       currentValue = val
       updateLabel(val)
-      applyBrightness(val)
+      if (!syncing) applyBrightness(val)
     }
+  })
+
+  // sun-adapt moves brightness on its own schedule; follow it so the slider
+  // never shows a stale value when the sidebar opens.
+  const monitor = Gio.File.new_for_path(STATE_FILE)
+    .monitor_file(Gio.FileMonitorFlags.NONE, null)
+  monitor.connect("changed", () => {
+    const val = loadState()
+    if (val === null || val === currentValue) return
+    syncing = true
+    currentValue = val
+    slider.value = val
+    updateLabel(val)
+    syncing = false
   })
 
   const container = new Gtk.Box({ hexpand: true, cssClasses: ["brightness"] })
   container.append(overlay)
+  ;(container as any)._brightnessMonitor = monitor  // keep alive past GC
 
   return container
 }

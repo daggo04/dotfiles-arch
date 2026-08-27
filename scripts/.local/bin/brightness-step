@@ -1,0 +1,18 @@
+#!/bin/sh
+# Nudge monitor brightness by a relative step, keeping the shared cache in sync.
+#
+#   brightness-step + 10
+#   brightness-step - 10
+#
+# ~/.cache/monitor-brightness is read by brightness-get (waybar), the AGS
+# Brightness slider, and sun-adapt. Anything that moves brightness without
+# updating it leaves all three showing a stale value.
+set -e
+
+CACHE="$HOME/.cache/monitor-brightness"
+
+/usr/bin/ddcutil setvcp 10 "$1" "$2"
+
+# Read back rather than computing it - ddcutil clamps at 0 and 100.
+val=$(/usr/bin/ddcutil getvcp 10 -t | cut -d' ' -f4)
+[ -n "$val" ] && printf '%s\n' "$val" > "$CACHE"

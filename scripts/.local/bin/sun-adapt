@@ -1,0 +1,411 @@
+#!/usr/bin/env python3
+"""sun-adapt - track the sun, drive monitor brightness and blue-light tint.
+
+Brightness goes out over DDC/CI (ddcutil VCP 10), tint over hyprsunset.
+Both cache files the AGS sidebar reads are kept in sync, so the sliders
+show the truth when you open the sidebar.
+
+Move a slider by hand and the daemon backs off for a while instead of
+fighting you.
+"""
+
+import json
+import math
+import os
+import subprocess
+import sys
+import time
+import tomllib
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "sun-adapt" / "config.toml"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+STATE = CACHE / "sun-adapt-state.json"
+BLUELIGHT_CACHE = CACHE / "ags-bluelight"        # written by the AGS BlueLight slider
+BRIGHTNESS_CACHE = CACHE / "monitor-brightness"  # read by brightness-get / waybar
+
+PROBE_INTERVAL = 300  # seconds between DDC/CI brightness probes while idling
+
+DEFAULTS = {
+    "location": {"latitude": 58.97, "longitude": 5.73},
+    "brightness": {"enabled": True, "day": 70, "night": 20},
+    "tint": {"enabled": True, "day_temp": 6500, "night_temp": 4500},
+    "schedule": {
+        "morning_earliest": "06:00", "morning_latest": "09:30",
+        "evening_earliest": "19:00", "evening_latest": "23:00",
+        "min_ramp_minutes": 60, "max_ramp_minutes": 150,
+    },
+    "behavior": {"tick_seconds": 60, "override_minutes": 120},
+}
+
+
+def load_config():
+    cfg = {k: dict(v) for k, v in DEFAULTS.items()}
+    if CONFIG.exists():
+        with CONFIG.open("rb") as fh:
+            user = tomllib.load(fh)
+        for section, values in user.items():
+            cfg.setdefault(section, {}).update(values)
+    return cfg
+
+
+# --- solar position -------------------------------------------------------
+# Low-precision algorithm from the Astronomical Almanac; good to ~0.01 deg,
+# which is far more than a screen tint needs.
+
+def solar_elevation(when, lat, lon):
+    n = when.timestamp() / 86400.0 + 2440587.5 - 2451545.0
+    mean_long = math.radians((280.460 + 0.9856474 * n) % 360)
+    anomaly = math.radians((357.528 + 0.9856003 * n) % 360)
+    ecl_long = mean_long + math.radians(1.915 * math.sin(anomaly) + 0.020 * math.sin(2 * anomaly))
+    obliquity = math.radians(23.439 - 0.0000004 * n)
+
+    declination = math.asin(math.sin(obliquity) * math.sin(ecl_long))
+    right_asc = math.atan2(math.cos(obliquity) * math.sin(ecl_long), math.cos(ecl_long))
+
+    gmst = (18.697374558 + 24.06570982441908 * n) % 24
+    local_sidereal = math.radians((gmst + lon / 15.0) * 15.0)
+    hour_angle = local_sidereal - right_asc
+
+    lat_r = math.radians(lat)
+    sin_elev = (math.sin(lat_r) * math.sin(declination)
+                + math.cos(lat_r) * math.cos(declination) * math.cos(hour_angle))
+    return math.degrees(math.asin(max(-1.0, min(1.0, sin_elev))))
+
+
+def find_crossing(day, lat, lon, angle, rising, tz):
+    """First time on `day` the sun crosses `angle`, or None (polar day/night)."""
+    start = datetime.combine(day, datetime.min.time(), tzinfo=tz)
+    step = timedelta(minutes=4)
+    prev_t = start
+    prev_e = solar_elevation(start.astimezone(timezone.utc), lat, lon)
+    for i in range(1, 361):
+        cur_t = start + step * i
+        cur_e = solar_elevation(cur_t.astimezone(timezone.utc), lat, lon)
+        crossed = (prev_e < angle <= cur_e) if rising else (prev_e > angle >= cur_e)
+        if crossed:
+            # refine by bisection
+            lo, hi = prev_t, cur_t
+            for _ in range(20):
+                mid = lo + (hi - lo) / 2
+                e = solar_elevation(mid.astimezone(timezone.utc), lat, lon)
+                if (e < angle) == rising:
+                    lo = mid
+                else:
+                    hi = mid
+            return lo + (hi - lo) / 2
+        prev_t, prev_e = cur_t, cur_e
+    return None
+
+
+# --- schedule -------------------------------------------------------------
+
+def parse_hhmm(day, text, tz):
+    hh, mm = (int(part) for part in text.split(":"))
+    return datetime.combine(day, datetime.min.time(), tzinfo=tz).replace(hour=hh, minute=mm)
+
+
+def schedule_for(day, cfg, tz):
+    """Return (morning_start, morning_end, evening_start, evening_end)."""
+    lat = cfg["location"]["latitude"]
+    lon = cfg["location"]["longitude"]
+    sched = cfg["schedule"]
+
+    min_ramp = timedelta(minutes=sched["min_ramp_minutes"])
+    max_ramp = timedelta(minutes=sched["max_ramp_minutes"])
+
+    dawn = find_crossing(day, lat, lon, -6.0, True, tz)
+    sunrise = find_crossing(day, lat, lon, -0.833, True, tz)
+    sunset = find_crossing(day, lat, lon, -0.833, False, tz)
+    dusk = find_crossing(day, lat, lon, -6.0, False, tz)
+
+    m_early = parse_hhmm(day, sched["morning_earliest"], tz)
+    m_late = parse_hhmm(day, sched["morning_latest"], tz)
+    e_early = parse_hhmm(day, sched["evening_earliest"], tz)
+    e_late = parse_hhmm(day, sched["evening_latest"], tz)
+
+    # Morning: begin at civil dawn, finish shortly after sunrise.
+    m_start = dawn if dawn else m_early
+    m_start = max(m_early, min(m_late, m_start))
+    m_end = (sunrise + timedelta(minutes=45)) if sunrise else (m_start + min_ramp)
+    m_end = max(m_start + min_ramp, min(m_start + max_ramp, m_end))
+
+    # Evening: begin shortly before sunset, finish at civil dusk.
+    e_start = (sunset - timedelta(minutes=45)) if sunset else e_early
+    e_start = max(e_early, min(e_late, e_start))
+    e_start = max(e_start, m_end + timedelta(minutes=30))
+    e_end = dusk if dusk else (e_start + min_ramp)
+    e_end = max(e_start + min_ramp, min(e_start + max_ramp, e_end))
+
+    return m_start, m_end, e_start, e_end
+
+
+def smoothstep(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def day_factor(now, cfg, tz):
+    """0.0 = full night, 1.0 = full daylight."""
+    m_start, m_end, e_start, e_end = schedule_for(now.date(), cfg, tz)
+
+    if now < m_start:
+        # Might still be inside yesterday's evening ramp if it crossed midnight.
+        _, _, y_start, y_end = schedule_for(now.date() - timedelta(days=1), cfg, tz)
+        if now < y_end:
+            return 1.0 - smoothstep((now - y_start) / (y_end - y_start))
+        return 0.0
+    if now < m_end:
+        return smoothstep((now - m_start) / (m_end - m_start))
+    if now < e_start:
+        return 1.0
+    if now < e_end:
+        return 1.0 - smoothstep((now - e_start) / (e_end - e_start))
+    return 0.0
+
+
+def targets(factor, cfg):
+    b = cfg["brightness"]
+    t = cfg["tint"]
+    brightness = round(b["night"] + factor * (b["day"] - b["night"]))
+    temp = round(t["night_temp"] + factor * (t["day_temp"] - t["night_temp"]))
+    # The AGS slider speaks percent: 0 = 6500K, 100 = 2500K.
+    pct = round(max(0.0, min(100.0, (6500 - temp) / 40.0)))
+    return brightness, temp, pct
+
+
+# --- state ----------------------------------------------------------------
+
+def read_state():
+    try:
+        return json.loads(STATE.read_text())
+    except Exception:
+        return {}
+
+
+def write_state(state):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state))
+    tmp.replace(STATE)
+
+
+def read_int(path):
+    try:
+        return int(path.read_text().strip())
+    except Exception:
+        return None
+
+
+# --- actuators ------------------------------------------------------------
+
+def run(cmd, timeout=15):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except Exception:
+        return None
+
+
+def get_monitor_brightness():
+    res = run(["ddcutil", "getvcp", "10", "--brief"])
+    if not res or res.returncode != 0:
+        return None
+    parts = res.stdout.split()
+    try:
+        return int(parts[3])
+    except (IndexError, ValueError):
+        return None
+
+
+def set_monitor_brightness(value):
+    res = run(["ddcutil", "setvcp", "10", str(value)])
+    ok = bool(res) and res.returncode == 0
+    if ok:
+        BRIGHTNESS_CACHE.write_text(f"{value}\n")
+    return ok
+
+
+def get_tint_temp():
+    res = run(["hyprctl", "hyprsunset", "temperature"], timeout=5)
+    if not res or res.returncode != 0:
+        return None
+    try:
+        return int(res.stdout.strip())
+    except ValueError:
+        return None
+
+
+def set_tint(temp, pct):
+    if temp >= 6500:
+        res = run(["hyprctl", "hyprsunset", "identity"], timeout=5)
+    else:
+        res = run(["hyprctl", "hyprsunset", "temperature", str(temp)], timeout=5)
+    ok = bool(res) and res.returncode == 0
+    if ok:
+        BLUELIGHT_CACHE.write_text(str(pct))
+    return ok
+
+
+# --- main loop ------------------------------------------------------------
+
+def log(msg):
+    print(f"{datetime.now().strftime('%H:%M:%S')} {msg}", flush=True)
+
+
+def tick(cfg, tz, state, force=False):
+    now = datetime.now(tz)
+    factor = day_factor(now, cfg, tz)
+    want_b, want_temp, want_pct = targets(factor, cfg)
+
+    def hold(what, value):
+        state["override_until"] = time.time() + cfg["behavior"]["override_minutes"] * 60
+        log(f"{what} changed by hand ({value}) - holding off for "
+            f"{cfg['behavior']['override_minutes']} min")
+
+    suppressed = (not force) and time.time() < state.get("override_until", 0)
+
+    # --- tint ---
+    # The AGS slider rewrites its cache file on every drag, so a mismatch there
+    # is a cheap and reliable "the user touched it" signal - no IPC needed.
+    if cfg["tint"]["enabled"]:
+        last_pct = state.get("last_pct")
+        seen_pct = read_int(BLUELIGHT_CACHE)
+        if (not force) and last_pct is not None and seen_pct is not None and seen_pct != last_pct:
+            state["last_pct"] = seen_pct
+            hold("tint", f"{seen_pct}%")
+            suppressed = True
+        elif not suppressed:
+            # Re-assert unconditionally: hyprsunset resets to 6500K if it restarts.
+            if get_tint_temp() != want_temp and set_tint(want_temp, want_pct):
+                state["last_pct"] = want_pct
+                state["last_temp"] = want_temp
+
+    # --- brightness ---
+    # DDC/CI reads are slow and put traffic on the I2C bus, so probe only when a
+    # write is due or the last probe has gone stale. Probing on plateaus too is
+    # what stops an evening nudge from silently cancelling the morning ramp.
+    if cfg["brightness"]["enabled"]:
+        last_b = state.get("last_brightness")
+        due = force or last_b is None or want_b != last_b
+        stale = time.time() - state.get("last_probe", 0) > PROBE_INTERVAL
+        observed = None
+        if due or stale:
+            observed = get_monitor_brightness()
+            state["last_probe"] = time.time()
+        if observed is None:
+            observed = read_int(BRIGHTNESS_CACHE)
+
+        if (not force) and last_b is not None and observed is not None and abs(observed - last_b) > 2:
+            state["last_brightness"] = observed
+            hold("brightness", f"{observed}%")
+            suppressed = True
+        elif not suppressed and due:
+            if observed == want_b:
+                state["last_brightness"] = want_b
+            elif set_monitor_brightness(want_b):
+                state["last_brightness"] = want_b
+
+    state["last_factor"] = round(factor, 4)
+    write_state(state)
+    return factor, want_b, want_temp
+
+
+def cmd_status(cfg, tz):
+    now = datetime.now(tz)
+    m_start, m_end, e_start, e_end = schedule_for(now.date(), cfg, tz)
+    lat, lon = cfg["location"]["latitude"], cfg["location"]["longitude"]
+    sunrise = find_crossing(now.date(), lat, lon, -0.833, True, tz)
+    sunset = find_crossing(now.date(), lat, lon, -0.833, False, tz)
+    factor = day_factor(now, cfg, tz)
+    want_b, want_temp, want_pct = targets(factor, cfg)
+    state = read_state()
+
+    fmt = lambda d: d.strftime("%H:%M") if d else "--:--"
+    print(f"now              {now.strftime('%Y-%m-%d %H:%M')}  ({tz})")
+    print(f"sun              rise {fmt(sunrise)}   set {fmt(sunset)}")
+    print(f"brighten ramp    {fmt(m_start)} -> {fmt(m_end)}")
+    print(f"warm ramp        {fmt(e_start)} -> {fmt(e_end)}")
+    print(f"daylight factor  {factor:.3f}")
+    print(f"target           brightness {want_b}%   tint {want_temp}K ({want_pct}%)")
+    print(f"actual           brightness {get_monitor_brightness()}%   tint {get_tint_temp()}K")
+    print(f"auto-adjust      {'on' if state.get('enabled', True) else 'OFF'}")
+    until = state.get("override_until", 0)
+    if time.time() < until:
+        mins = int((until - time.time()) / 60)
+        print(f"override         active, auto-resumes in {mins} min")
+    else:
+        print("override         none")
+
+
+def main():
+    cfg = load_config()
+    tz = ZoneInfo(cfg.get("behavior", {}).get("timezone", "Europe/Oslo"))
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
+
+    if cmd == "status":
+        cmd_status(cfg, tz)
+    elif cmd == "apply":
+        state = read_state()
+        state.pop("override_until", None)
+        f, b, t = tick(cfg, tz, state, force=True)
+        print(f"applied: factor {f:.3f} -> brightness {b}%, tint {t}K")
+    elif cmd == "pause":
+        mins = int(sys.argv[2]) if len(sys.argv) > 2 else cfg["behavior"]["override_minutes"]
+        state = read_state()
+        state["override_until"] = time.time() + mins * 60
+        write_state(state)
+        print(f"paused for {mins} min")
+    elif cmd == "state":
+        # machine-readable, for the rofi menu
+        print("on" if read_state().get("enabled", True) else "off")
+    elif cmd == "off":
+        state = read_state()
+        state["enabled"] = False
+        write_state(state)
+        print("auto-adjust off (unit still running; 'sun-adapt on' to resume)")
+    elif cmd == "on":
+        state = read_state()
+        state["enabled"] = True
+        state.pop("override_until", None)
+        write_state(state)
+        tick(cfg, tz, state, force=True)
+        print("auto-adjust on")
+    elif cmd == "resume":
+        state = read_state()
+        state.pop("override_until", None)
+        write_state(state)
+        tick(cfg, tz, state, force=True)
+        print("resumed")
+    elif cmd == "run":
+        interval = cfg["behavior"]["tick_seconds"]
+        log(f"sun-adapt started (lat {cfg['location']['latitude']}, "
+            f"lon {cfg['location']['longitude']}, tick {interval}s)")
+        first, was_enabled = True, None
+        while True:
+            try:
+                # Re-read every tick. pause/resume/on/off run as separate
+                # processes writing this same file; a cached dict would
+                # silently clobber whatever they just asked for.
+                state = read_state()
+                if first:
+                    state.pop("override_until", None)
+                    first = False
+                enabled = state.get("enabled", True)
+                if enabled != was_enabled:
+                    log("auto-adjust " + ("on" if enabled else "off"))
+                    was_enabled = enabled
+                if enabled:
+                    tick(cfg, tz, state)
+            except Exception as exc:
+                log(f"tick failed: {exc}")
+            time.sleep(interval)
+    else:
+        print(__doc__)
+        print("usage: sun-adapt [run|status|state|apply|on|off|pause [min]|resume]")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

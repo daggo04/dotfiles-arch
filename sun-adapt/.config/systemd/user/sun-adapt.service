@@ -1,0 +1,16 @@
+[Unit]
+Description=Sun-tracked screen brightness and blue-light tint
+Documentation=man:ddcutil(1)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/sun-adapt run
+Restart=on-failure
+RestartSec=10
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=graphical-session.target

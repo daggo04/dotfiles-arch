@@ -1,0 +1,31 @@
+# sun-adapt: sun-tracked screen brightness + blue-light tint
+# Restart after editing:  systemctl --user restart sun-adapt
+
+[location]
+# Stavanger
+latitude  = 58.97
+longitude = 5.73
+
+[brightness]
+enabled = true
+day     = 70    # ddcutil VCP 10 value at full daylight
+night   = 20    # ...and at full night
+
+[tint]
+enabled    = true
+day_temp   = 6500   # Kelvin at full daylight (6500 = hyprsunset identity/off)
+night_temp = 4500   # Kelvin at full night
+
+[schedule]
+# Raw sun times get clamped into these windows so Norwegian June/December
+# both stay livable. Times are local (Europe/Oslo).
+morning_earliest = "06:00"   # never start brightening before this
+morning_latest   = "09:30"   # never start brightening after this
+evening_earliest = "19:00"   # never start warming before this
+evening_latest   = "23:00"   # never start warming after this
+min_ramp_minutes = 60        # a transition is never shorter than this
+max_ramp_minutes = 150       # ...nor longer
+
+[behavior]
+tick_seconds     = 60
+override_minutes = 120   # if you move a slider by hand, back off this long
