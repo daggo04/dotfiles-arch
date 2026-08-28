@@ -40,6 +40,21 @@ systemctl --user restart sun-adapt      # after editing config.toml
 journalctl --user -u sun-adapt -f       # watch it work
 ```
 
+## What it logs
+
+Quiet on plateaus, chatty while actually moving: a line on every phase change
+(`night` / `dawn` / `day` / `dusk`) and one every 10 minutes while a ramp is
+running, plus manual-override and on/off events.
+
+```
+20:47:51 -> dusk: factor 0.52  brightness 46%  tint 5548K
+20:57:51    dusk: factor 0.44  brightness 42%  tint 5364K
+21:33:12 -> night: factor 0.00  brightness 20%  tint 4500K
+```
+
+That works out to roughly 15 lines a day - enough to review a week later,
+little enough not to bury the interesting events.
+
 Also in the rofi `Commands` palette (`rofi -show Commands`): turn on/off,
 pause 2h, and a status notification. Those entries re-read the live state on
 every open, so the menu always offers the action that actually applies.

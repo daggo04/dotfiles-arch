@@ -107,8 +107,20 @@ def parse_hhmm(day, text, tz):
     return datetime.combine(day, datetime.min.time(), tzinfo=tz).replace(hour=hh, minute=mm)
 
 
+_SCHEDULE_CACHE = {}
+
+
 def schedule_for(day, cfg, tz):
     """Return (morning_start, morning_end, evening_start, evening_end)."""
+    key = (day, cfg["location"]["latitude"], cfg["location"]["longitude"])
+    if key not in _SCHEDULE_CACHE:
+        if len(_SCHEDULE_CACHE) > 8:
+            _SCHEDULE_CACHE.clear()
+        _SCHEDULE_CACHE[key] = _compute_schedule(day, cfg, tz)
+    return _SCHEDULE_CACHE[key]
+
+
+def _compute_schedule(day, cfg, tz):
     lat = cfg["location"]["latitude"]
     lon = cfg["location"]["longitude"]
     sched = cfg["schedule"]
@@ -140,6 +152,19 @@ def schedule_for(day, cfg, tz):
     e_end = max(e_start + min_ramp, min(e_start + max_ramp, e_end))
 
     return m_start, m_end, e_start, e_end
+
+
+def phase_of(now, cfg, tz):
+    m_start, m_end, e_start, e_end = schedule_for(now.date(), cfg, tz)
+    if now < m_start:
+        return "night"
+    if now < m_end:
+        return "dawn"
+    if now < e_start:
+        return "day"
+    if now < e_end:
+        return "dusk"
+    return "night"
 
 
 def smoothstep(t):
@@ -306,6 +331,18 @@ def tick(cfg, tz, state, force=False):
                 state["last_brightness"] = want_b
             elif set_monitor_brightness(want_b):
                 state["last_brightness"] = want_b
+
+    # Leave a reviewable trace: every phase change, plus a line every 10 min
+    # while a ramp is actually moving. Plateaus stay quiet.
+    phase = phase_of(now, cfg, tz)
+    detail = f"factor {factor:.2f}  brightness {want_b}%  tint {want_temp}K"
+    if phase != state.get("last_phase"):
+        log(f"-> {phase}: {detail}")
+        state["last_phase"] = phase
+        state["last_log"] = time.time()
+    elif phase in ("dawn", "dusk") and time.time() - state.get("last_log", 0) >= 600:
+        log(f"   {phase}: {detail}")
+        state["last_log"] = time.time()
 
     state["last_factor"] = round(factor, 4)
     write_state(state)
