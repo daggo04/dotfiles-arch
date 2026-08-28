@@ -481,10 +481,15 @@ menubutton.device-dropdown-btn > button:hover .audio-device-name {
   border: 1px solid $border;
 }
 
+// Decorative slabs stacked behind a collapsed group's front card. Only the
+// bottom few px are ever visible, so they carry no content — just an edge.
 .notif-shadow {
   padding: 0;
+  min-height: 8px;
   border-top: none;
   border-radius: 0 0 10px 10px;
+  background-color: $bg-dark;
+  border-color: $dimmed5;
 }
 
 // ── Stack wrapper ──────────────────────

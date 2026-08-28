@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# astal-cache-prune - bound the astal caches, which carry no TTL of their own.
+#
+# Two caches, two different rules:
+#
+#   ~/.cache/astal/mpris    album art keyed by hash. Pruned by age.
+#   ~/.cache/astal/notifd   images extracted from notifications. The daemon
+#                           never removes these when a notification is
+#                           dismissed, so prune the ones no live notification
+#                           still references.
+#
+# AGE MEANS ctime, NOT mtime. astal preserves the artwork's original
+# Last-Modified, so a file cached this week can carry a 2019 mtime - a plain
+# `find -mtime +60 -delete` deletes live entries. atime is no use either: the
+# filesystem is mounted noatime, so it never advances past the write.
+#
+# Dry run by default; pass --apply to actually delete.
+
+set -euo pipefail
+
+DAYS=60
+APPLY=0
+
+usage() {
+  cat <<'USAGE'
+usage: astal-cache-prune [--apply] [--days N]
+
+  --apply     actually delete (default: dry run, just report)
+  --days N    prune album art whose ctime is older than N days (default 60)
+  -h, --help  this message
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --apply) APPLY=1 ;;
+    --days) DAYS="${2:?--days needs a number}"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/astal"
+MPRIS="$CACHE/mpris"
+NOTIFD="$CACHE/notifd"
+
+human() { numfmt --to=iec --suffix=B "${1:-0}" 2>/dev/null || echo "${1:-0}B"; }
+
+prune_list() { # <label> < newline-separated paths
+  local label="$1" count=0 bytes=0 f sz
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    sz=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    count=$((count + 1)); bytes=$((bytes + sz))
+    if [ "$APPLY" -eq 1 ]; then rm -f -- "$f"; fi
+  done
+  printf '  %-28s %4d files  %8s\n' "$label" "$count" "$(human "$bytes")"
+}
+
+# --- album art: age by ctime -------------------------------------------------
+if [ -d "$MPRIS" ]; then
+  before=$(du -sh "$MPRIS" 2>/dev/null | cut -f1)
+  # -cmin rather than -ctime so --days accepts fractions of a day cleanly
+  find "$MPRIS" -type f -cmin "+$((DAYS * 1440))" 2>/dev/null \
+    | prune_list "mpris art >${DAYS}d (ctime)"
+  echo "  (mpris cache was $before)"
+else
+  echo "  no mpris cache at $MPRIS"
+fi
+
+# --- notification images: prune unreferenced ---------------------------------
+# Ask the running daemon which images are still live. If that fails, skip
+# entirely rather than guessing - these files are tiny, and deleting art for
+# live notifications is worse than leaving a few orphans behind.
+if [ -d "$NOTIFD" ]; then
+  KEEP="$(mktemp)"
+  QUERY="$(mktemp --suffix=.js)"
+  trap 'rm -f "$KEEP" "$QUERY"' EXIT
+
+  cat > "$QUERY" <<'JS'
+import Notifd from "gi://AstalNotifd"
+for (const n of Notifd.get_default().get_notifications()) {
+  for (const v of [n.image, n.app_icon]) {
+    if (v) print(v.replace(/^file:\/\//, ""))
+  }
+}
+JS
+
+  if command -v gjs >/dev/null 2>&1 && gjs -m "$QUERY" 2>/dev/null | sort -u > "$KEEP"; then
+    find "$NOTIFD" -type f -name '*.png' 2>/dev/null \
+      | grep -vxF -f "$KEEP" 2>/dev/null \
+      | prune_list "notifd orphaned images"
+  else
+    echo "  notifd: could not query the daemon, skipped"
+  fi
+fi
+
+if [ "$APPLY" -eq 0 ]; then
+  echo
+  echo "dry run - nothing deleted. Re-run with --apply to remove the above."
+fi

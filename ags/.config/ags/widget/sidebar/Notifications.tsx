@@ -1,9 +1,16 @@
 import { Gtk } from "ags/gtk4"
-import Gdk from "gi://Gdk"
 import Notifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import cairo from "cairo"
 import { onExpandApp } from "../../lib/notifBus"
+import { makeNotifIcon } from "../../lib/notifIcon"
+import { toPangoMarkup, toPlainText } from "../../lib/notifMarkup"
+import {
+  DEFAULT_ACTION,
+  buttonActions,
+  hasDefaultAction,
+  invokeAction,
+} from "../../lib/notifActions"
 
 const ANIM_DURATION = 200
 
@@ -25,16 +32,14 @@ function timeAgo(unixTime: number): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-function iconNameForApp(appName: string, appIcon: string): string {
-  if (appIcon) return appIcon
-  return appName.toLowerCase().replace(/\s+/g, "-")
-}
-
-
 // ── Single notification card widget ─────────────────
-function NotifCard(notif: Notifd.Notification, onAnimateOut?: (id: number) => void): Gtk.Revealer {
+function NotifCard(
+  notif: Notifd.Notification,
+  onAnimateOut?: (id: number) => void,
+  activatable: boolean = false,
+): Gtk.Revealer {
   const summary = new Gtk.Label({
-    label: notif.summary || "Notification",
+    label: toPlainText(notif.summary) || "Notification",
     cssClasses: ["notif-summary"],
     halign: Gtk.Align.START,
     ellipsize: 3,
@@ -72,30 +77,42 @@ function NotifCard(notif: Notifd.Notification, onAnimateOut?: (id: number) => vo
   })
   card.append(titleRow)
 
-  if (notif.body) {
+  const bodyMarkup = toPangoMarkup(notif.body)
+  if (bodyMarkup) {
     const body = new Gtk.Label({
-      label: notif.body,
+      label: bodyMarkup,
       cssClasses: ["notif-body"],
       halign: Gtk.Align.START,
+      xalign: 0,
       wrap: true,
       maxWidthChars: 50,
-      useMarkup: false,
+      useMarkup: true,
     })
     card.append(body)
   }
 
-  const actions = notif.actions
-  if (actions && actions.length > 0) {
+  const actions = buttonActions(notif)
+  if (actions.length > 0) {
     const actionsBox = new Gtk.Box({ spacing: 4, cssClasses: ["notif-actions"] })
     for (const action of actions) {
       const btn = new Gtk.Button({
         cssClasses: ["notif-action-btn"],
         child: new Gtk.Label({ label: action.label }),
       })
-      btn.connect("clicked", () => notif.invoke(action.id))
+      btn.connect("clicked", () => invokeAction(notif, action.id))
       actionsBox.append(btn)
     }
     card.append(actionsBox)
+  }
+
+  // The default action lives on the card body, per the spec. Only wired up
+  // where a click isn't already spoken for — inside a collapsed stack the
+  // click expands the group instead.
+  if (activatable && hasDefaultAction(notif)) {
+    card.set_cursor_from_name("pointer")
+    const activateCtrl = new Gtk.GestureClick()
+    activateCtrl.connect("released", () => invokeAction(notif, DEFAULT_ACTION))
+    card.add_controller(activateCtrl)
   }
 
   const revealer = new Gtk.Revealer({
@@ -109,26 +126,7 @@ function NotifCard(notif: Notifd.Notification, onAnimateOut?: (id: number) => vo
 }
 
 // ── Floating app icon helper ────────────────────────
-function hasIcon(name: string): boolean {
-  const theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default()!)
-  return theme.has_icon(name)
-}
-
-function makeFloatingIcon(appName: string, appIcon: string, size: number): Gtk.Box {
-  const iconName = iconNameForApp(appName, appIcon)
-  const useImage = hasIcon(iconName)
-
-  const iconWidget = useImage
-    ? new Gtk.Image({
-        iconName: iconName,
-        pixelSize: size,
-        cssClasses: ["notif-app-icon"],
-      })
-    : new Gtk.Label({
-        label: "󱠢",
-        cssClasses: ["notif-app-icon-fallback"],
-      })
-
+function makeFloatingIcon(notif: Notifd.Notification, size: number): Gtk.Box {
   const box = new Gtk.Box({
     halign: Gtk.Align.START,
     valign: Gtk.Align.START,
@@ -136,7 +134,9 @@ function makeFloatingIcon(appName: string, appIcon: string, size: number): Gtk.B
     marginTop: 2,
     cssClasses: ["notif-icon-float"],
   })
-  box.append(iconWidget)
+  box.append(
+    makeNotifIcon(notif, size, ["notif-app-icon"], ["notif-app-icon-fallback"]),
+  )
   return box
 }
 
@@ -145,17 +145,21 @@ function makeFloatingIcon(appName: string, appIcon: string, size: number): Gtk.B
 class AppStackManager {
   appName: string
   appIcon: string
-  notifIds: Set<number> = new Set()
   expanded: boolean
   widget: Gtk.Box
-  private notifd: Notifd.Notifd
+  dirty: boolean = true
+  // Hold the notifications themselves rather than their ids. Looking them up
+  // by id meant calling notifd.get_notifications() — which marshals every
+  // queued notification across the GI boundary — on every read, including
+  // once per side of every comparison in the container's sort.
+  private items: Map<number, Notifd.Notification> = new Map()
+  private order: Notifd.Notification[] | null = null
   private animatingOut: Set<number> = new Set()
 
-  constructor(appName: string, appIcon: string, notifd: Notifd.Notifd) {
+  constructor(appName: string, appIcon: string) {
     this.appName = appName
     this.appIcon = appIcon
     this.expanded = false
-    this.notifd = notifd
     this.widget = new Gtk.Box({
       orientation: Gtk.Orientation.VERTICAL,
       cssClasses: ["notif-stack-wrapper"],
@@ -163,14 +167,24 @@ class AppStackManager {
     this.widget.set_overflow(Gtk.Overflow.VISIBLE)
   }
 
+  /**
+   * Newest first. Sorted once per mutation, not once per read.
+   *
+   * `time` is only second-granular, so a burst of notifications all carry the
+   * same stamp and time alone leaves their order to chance. Ids increment, so
+   * break ties on those — otherwise a group fronts its oldest card.
+   */
   get notifs(): Notifd.Notification[] {
-    return this.notifd.get_notifications()
-      .filter(n => this.notifIds.has(n.id))
-      .sort((a, b) => b.time - a.time)
+    if (!this.order) {
+      this.order = [...this.items.values()].sort(
+        (a, b) => b.time - a.time || b.id - a.id,
+      )
+    }
+    return this.order
   }
 
   get count(): number {
-    return this.notifIds.size
+    return this.items.size
   }
 
   get latestTime(): number {
@@ -178,9 +192,19 @@ class AppStackManager {
     return notifs.length > 0 ? notifs[0].time : 0
   }
 
-  addNotif(id: number) {
-    this.notifIds.add(id)
-    this.render()
+  get latestId(): number {
+    const notifs = this.notifs
+    return notifs.length > 0 ? notifs[0].id : 0
+  }
+
+  has(id: number): boolean {
+    return this.items.has(id)
+  }
+
+  addNotif(notif: Notifd.Notification) {
+    this.items.set(notif.id, notif)
+    this.order = null
+    this.dirty = true
   }
 
   markAnimatingOut(id: number) {
@@ -189,20 +213,21 @@ class AppStackManager {
 
   removeNotif(id: number) {
     const wasAnimating = this.animatingOut.delete(id)
-    this.notifIds.delete(id)
+    if (!this.items.delete(id)) return
+    this.order = null
 
     // If the revealer already animated this card out in expanded view
     // and there are still 2+ cards, skip the destructive re-render
-    if (wasAnimating && this.expanded && this.notifIds.size > 1) {
+    if (wasAnimating && this.expanded && this.items.size > 1) {
       return
     }
 
     // Collapse back to single-card view if only 1 left
-    if (this.expanded && this.notifIds.size <= 1) {
+    if (this.expanded && this.items.size <= 1) {
       this.expanded = false
     }
 
-    this.render()
+    this.dirty = true
   }
 
   render(animate: boolean = false) {
@@ -219,77 +244,66 @@ class AppStackManager {
   }
 
   private renderCollapsed(notifs: Notifd.Notification[]) {
-    const onDismissTop = (id: number) => this.markAnimatingOut(id)
-
-    const PEEK = 5       // px each card peeks below the one above
+    const PEEK = 5       // px each slab peeks below the card in front of it
     const MAX_PEEK = 15  // total peek depth limit
-    const INSET = 3      // extra side margin per depth level
-    const maxDepth = Math.min(notifs.length - 1, Math.floor(MAX_PEEK / PEEK))
+    const INSET = 3      // extra side inset per depth level
+    const depth = Math.min(notifs.length - 1, Math.floor(MAX_PEEK / PEEK))
 
-    // Wrap a card revealer with a floating app icon so the icon
-    // is attached to the card and moves with it during animations.
-    // Only the top card allows overflow (so its icon extends beyond);
-    // deeper cards clip their icons to stay hidden behind the top card.
-    const wrapWithIcon = (card: Gtk.Revealer, allowOverflow: boolean = false): Gtk.Overlay => {
-      const iconBox = makeFloatingIcon(this.appName, this.appIcon, 24)
-      const ov = new Gtk.Overlay()
-      if (allowOverflow) ov.set_overflow(Gtk.Overflow.VISIBLE)
-      ov.set_child(card)
-      ov.add_overlay(iconBox)
-      return ov
-    }
-
-    // All cards are layered in a single Gtk.Overlay.
-    // The deepest visible card is the base (determines total height).
-    // Each card is offset down + inset so its bottom edge peeks below
-    // the one above. When the top card's revealer collapses, the card
-    // beneath is already rendered in place — no layout jump.
     const cardLayer = new Gtk.Overlay()
 
-    // Base: deepest visible card (offset the most, no icon)
-    const baseCard = NotifCard(notifs[Math.min(maxDepth, notifs.length - 1)])
-    baseCard.set_can_target(false)
-    baseCard.marginTop = maxDepth * PEEK
-    baseCard.marginStart = maxDepth * INSET
-    baseCard.marginEnd = maxDepth * INSET
-    cardLayer.set_child(baseCard)
+    // Behind the front card sit plain slabs, not real notification cards.
+    // Only the front card is ever visible, so rendering the others was both
+    // wasted work and the cause of the overlap: a Gtk.Overlay measures only
+    // its main child, so whenever the deepest card happened to be shorter
+    // than the front one the stack was under-allocated and the front card
+    // painted over the app group below it.
+    const slab = (d: number) =>
+      new Gtk.Box({
+        cssClasses: ["notif-card", "notif-shadow"],
+        marginStart: d * INSET,
+        marginEnd: d * INSET,
+        marginTop: d * PEEK,
+        canTarget: false,
+      })
 
-    // Intermediate cards as overlays (deep → shallow)
-    // Only the card directly below the top (i=1) gets an icon so it's
-    // revealed when the top card slides away. Deeper cards have no icon.
-    for (let i = maxDepth - 1; i >= 1; i--) {
-      if (i < notifs.length) {
-        const rawCard = NotifCard(notifs[i])
-        const wrapped = i === 1 ? wrapWithIcon(rawCard) : rawCard
-        wrapped.set_can_target(false)
-        wrapped.marginTop = i * PEEK
-        wrapped.marginStart = i * INSET
-        wrapped.marginEnd = i * INSET
-        wrapped.valign = Gtk.Align.START
-        cardLayer.add_overlay(wrapped)
-      }
+    // Deepest slab is the main child: bottom of the z-order, and stretched by
+    // the overlay to the full height so its edge lands at the very bottom.
+    cardLayer.set_child(slab(depth))
+
+    // Shallower slabs stop short by one PEEK each, giving the stepped edge.
+    for (let d = depth - 1; d >= 1; d--) {
+      const s = slab(d)
+      s.valign = Gtk.Align.FILL
+      s.marginBottom = (depth - d) * PEEK
+      cardLayer.add_overlay(s)
     }
 
-    // Top card (last overlay = visually on top, overflow visible for icon)
-    const topWrapped = wrapWithIcon(NotifCard(notifs[0], onDismissTop), true)
-    topWrapped.valign = Gtk.Align.START
-    cardLayer.add_overlay(topWrapped)
+    // Front card goes on last so it draws above the slabs. measure_overlay is
+    // what makes it drive the stack's height; its bottom margin reserves
+    // exactly the strip the slabs peek through.
+    const front = new Gtk.Overlay({ valign: Gtk.Align.START })
+    front.set_overflow(Gtk.Overflow.VISIBLE)
+    front.set_child(NotifCard(notifs[0], (id) => this.markAnimatingOut(id)))
+    front.add_overlay(makeFloatingIcon(notifs[0], 24))
+    front.marginBottom = depth * PEEK
 
-    // Count badge — pinned to top-right of the top card
-    if (notifs.length > 1) {
-      const countLabel = new Gtk.Label({
+    cardLayer.add_overlay(front)
+    cardLayer.set_measure_overlay(front, true)
+
+    // Count badge — bottom-right, clear of the peek strip
+    const countBox = new Gtk.Box({
+      halign: Gtk.Align.END,
+      valign: Gtk.Align.END,
+      marginEnd: 16,
+      marginBottom: depth * PEEK + 4,
+    })
+    countBox.append(
+      new Gtk.Label({
         label: `${notifs.length}`,
         cssClasses: ["notif-count"],
-      })
-      const countBox = new Gtk.Box({
-        halign: Gtk.Align.END,
-        valign: Gtk.Align.END,
-        marginEnd: 16,
-        marginBottom: maxDepth * PEEK + 4,
-      })
-      countBox.append(countLabel)
-      cardLayer.add_overlay(countBox)
-    }
+      }),
+    )
+    cardLayer.add_overlay(countBox)
 
     // Click to expand
     const clickCtrl = new Gtk.GestureClick()
@@ -307,8 +321,8 @@ class AppStackManager {
 
     if (notifs.length === 1) {
       // Single notification with floating icon
-      const card = NotifCard(notifs[0], onAnimateOut)
-      const iconBox = makeFloatingIcon(this.appName, this.appIcon, 24)
+      const card = NotifCard(notifs[0], onAnimateOut, true)
+      const iconBox = makeFloatingIcon(notifs[0], 24)
       const overlay = new Gtk.Overlay()
       overlay.set_overflow(Gtk.Overflow.VISIBLE)
       overlay.set_child(card)
@@ -325,17 +339,12 @@ class AppStackManager {
       hexpand: true,
     })
 
-    const headerIconName = iconNameForApp(this.appName, this.appIcon)
-    const icon = hasIcon(headerIconName)
-      ? new Gtk.Image({
-          iconName: headerIconName,
-          pixelSize: 20,
-          cssClasses: ["notif-app-icon"],
-        })
-      : new Gtk.Label({
-          label: "󱠢",
-          cssClasses: ["notif-app-icon-fallback"],
-        })
+    const icon = makeNotifIcon(
+      notifs[0],
+      20,
+      ["notif-app-icon"],
+      ["notif-app-icon-fallback"],
+    )
 
     const collapseBtn = new Gtk.Button({
       cssClasses: ["icon-button", "notif-collapse-btn"],
@@ -365,7 +374,7 @@ class AppStackManager {
       spacing: 6,
     })
     for (const n of notifs) {
-      cardsBox.append(NotifCard(n, onAnimateOut))
+      cardsBox.append(NotifCard(n, onAnimateOut, true))
     }
 
     const cardsRevealer = new Gtk.Revealer({
@@ -433,10 +442,30 @@ export default function Notifications() {
 
   function getOrCreateStack(appName: string, appIcon: string): AppStackManager {
     if (!stacks.has(appName)) {
-      const mgr = new AppStackManager(appName, appIcon, notifd)
+      const mgr = new AppStackManager(appName, appIcon)
       stacks.set(appName, mgr)
     }
     return stacks.get(appName)!
+  }
+
+  // Rebuilding on every signal made "Clear all" quadratic: dismissing N
+  // notifications fired N resolved signals, each re-rendering a stack and
+  // re-sorting the whole container. Coalesce instead — the daemon delivers
+  // the whole burst before the main loop goes idle, so one rebuild covers it.
+  let flushPending = 0
+  function scheduleFlush() {
+    if (flushPending) return
+    flushPending = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      flushPending = 0
+      for (const [, mgr] of stacks) {
+        if (mgr.dirty && mgr.count > 0) {
+          mgr.render()
+          mgr.dirty = false
+        }
+      }
+      updateContainerOrder()
+      return GLib.SOURCE_REMOVE
+    })
   }
 
   function updateContainerOrder() {
@@ -467,8 +496,10 @@ export default function Notifications() {
 
     clearBtn.visible = true
 
-    // Sort by latest time
-    const sorted = [...stacks.values()].sort((a, b) => b.latestTime - a.latestTime)
+    // Sort by latest notification, id breaking same-second ties
+    const sorted = [...stacks.values()].sort(
+      (a, b) => b.latestTime - a.latestTime || b.latestId - a.latestId,
+    )
     for (const mgr of sorted) {
       container.append(mgr.widget)
     }
@@ -481,30 +512,31 @@ export default function Notifications() {
 
     const appName = notif.app_name || "Unknown"
     const mgr = getOrCreateStack(appName, notif.app_icon || "")
-    mgr.addNotif(id)
-    updateContainerOrder()
+    mgr.addNotif(notif)
+    scheduleFlush()
   })
 
   // Handle dismissed/closed notification
   notifd.connect("resolved", (_self: any, id: number) => {
     // Find which stack owns this id and remove it
     for (const [, mgr] of stacks) {
-      if (mgr.notifIds.has(id)) {
+      if (mgr.has(id)) {
         mgr.removeNotif(id)
         break
       }
     }
-    updateContainerOrder()
+    scheduleFlush()
   })
 
   // Bootstrap with existing notifications
   for (const notif of notifd.get_notifications()) {
     const appName = notif.app_name || "Unknown"
     const mgr = getOrCreateStack(appName, notif.app_icon || "")
-    mgr.notifIds.add(notif.id)
+    mgr.addNotif(notif)
   }
   for (const [, mgr] of stacks) {
     mgr.render()
+    mgr.dirty = false
   }
   updateContainerOrder()
 

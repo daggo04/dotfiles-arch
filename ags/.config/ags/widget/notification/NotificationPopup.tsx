@@ -1,47 +1,20 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
-import Gdk from "gi://Gdk"
 import Notifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import { emitExpandApp } from "../../lib/notifBus"
+import { makeNotifIcon } from "../../lib/notifIcon"
+import { toPangoMarkup, toPlainText } from "../../lib/notifMarkup"
 
 const POPUP_TIMEOUT = 5000
 
-function clearBox(box: Gtk.Box) {
-  let child = box.get_first_child()
-  while (child) {
-    const next = child.get_next_sibling()
-    box.remove(child)
-    child = next
-  }
-}
-
-function iconNameForApp(appName: string, appIcon: string): string {
-  if (appIcon) return appIcon
-  return appName.toLowerCase().replace(/\s+/g, "-")
-}
-
-function hasIcon(name: string): boolean {
-  const theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default()!)
-  return theme.has_icon(name)
-}
-
 function PopupCard(notif: Notifd.Notification, onDone: () => void): Gtk.Box {
-  const iconName = iconNameForApp(notif.app_name || "", notif.app_icon || "")
-  const useImage = hasIcon(iconName)
-
-  const iconWidget = useImage
-    ? new Gtk.Image({
-        iconName: iconName,
-        pixelSize: 48,
-        cssClasses: ["popup-icon"],
-        valign: Gtk.Align.CENTER,
-      })
-    : new Gtk.Label({
-        label: "󱠢",
-        cssClasses: ["popup-icon-fallback"],
-        valign: Gtk.Align.CENTER,
-      })
+  const iconWidget = makeNotifIcon(
+    notif,
+    48,
+    ["popup-icon"],
+    ["popup-icon-fallback"],
+  )
 
   const appName = new Gtk.Label({
     label: notif.app_name || "",
@@ -63,7 +36,7 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Gtk.Box {
   headerRow.append(dismissBtn)
 
   const summary = new Gtk.Label({
-    label: notif.summary || "Notification",
+    label: toPlainText(notif.summary) || "Notification",
     cssClasses: ["popup-summary"],
     halign: Gtk.Align.START,
     ellipsize: 3,
@@ -78,14 +51,18 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Gtk.Box {
   contentBox.append(headerRow)
   contentBox.append(summary)
 
-  if (notif.body) {
+  const bodyMarkup = toPangoMarkup(notif.body)
+  if (bodyMarkup) {
     const body = new Gtk.Label({
-      label: notif.body,
+      label: bodyMarkup,
       cssClasses: ["popup-body"],
       halign: Gtk.Align.START,
+      xalign: 0,
       wrap: true,
       maxWidthChars: 36,
-      useMarkup: false,
+      lines: 6,
+      ellipsize: 3,
+      useMarkup: true,
     })
     contentBox.append(body)
   }
@@ -107,15 +84,26 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Gtk.Box {
   })
   card.add_controller(clickCtrl)
 
-  // Auto-dismiss after timeout
-  const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, POPUP_TIMEOUT, () => {
-    onDone()
-    return GLib.SOURCE_REMOVE
-  })
+  // Auto-dismiss after timeout. Null the id once it fires: the source is
+  // already gone by then, and resolving the notification later (the normal
+  // case — the popup times out long before you clear it) would otherwise
+  // call source_remove on a dead id and log a GLib-CRITICAL.
+  let timeoutId: number | null = GLib.timeout_add(
+    GLib.PRIORITY_DEFAULT,
+    POPUP_TIMEOUT,
+    () => {
+      timeoutId = null
+      onDone()
+      return GLib.SOURCE_REMOVE
+    },
+  )
 
   // If notification is resolved externally, remove popup
   notif.connect("resolved", () => {
-    GLib.source_remove(timeoutId)
+    if (timeoutId !== null) {
+      GLib.source_remove(timeoutId)
+      timeoutId = null
+    }
     onDone()
   })
 
