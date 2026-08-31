@@ -1,0 +1,9 @@
+[Unit]
+Description=Mirror Steam desktop shortcuts into the XDG applications dir
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/steam-shortcuts-sync
+
+[Install]
+WantedBy=default.target

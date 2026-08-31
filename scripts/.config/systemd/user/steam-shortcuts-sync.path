@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch the Desktop dir for new Steam shortcuts
+
+[Path]
+PathChanged=%h/Desktop
+Unit=steam-shortcuts-sync.service
+
+[Install]
+WantedBy=default.target

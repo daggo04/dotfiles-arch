@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Mirror Steam's "Add desktop shortcut" entries into the XDG applications dir
+# so rofi -show drun can find them.
+#
+# Steam always writes those shortcuts to XDG_DESKTOP_DIR, which is not an XDG
+# applications dir, so no launcher ever sees them. Symlink rather than copy, so
+# Steam stays the source of truth; links are pruned when a shortcut is deleted.
+
+set -euo pipefail
+shopt -s nullglob
+
+desktop_dir="$(xdg-user-dir DESKTOP 2>/dev/null || true)"
+desktop_dir="${desktop_dir:-$HOME/Desktop}"
+apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+prefix="steam-shortcut-"
+
+mkdir -p "$apps_dir"
+changed=0
+
+# Drop managed links whose Desktop-side shortcut is gone.
+for link in "$apps_dir/$prefix"*.desktop; do
+    if [ -L "$link" ] && [ ! -e "$link" ]; then
+        rm -f "$link"
+        changed=1
+    fi
+done
+
+# appids already covered by a hand-made entry, so we never duplicate them.
+declare -A claimed=()
+for entry in "$apps_dir"/*.desktop; do
+    case "$(basename "$entry")" in "$prefix"*) continue ;; esac
+    while read -r id; do
+        claimed["$id"]=1
+    done < <(grep -oP 'steam://rungameid/\K[0-9]+' "$entry" 2>/dev/null || true)
+done
+
+for src in "$desktop_dir"/*.desktop; do
+    appid="$(grep -oP 'steam://rungameid/\K[0-9]+' "$src" 2>/dev/null | head -1 || true)"
+    # Skips the Steam client's own launcher, which has no rungameid.
+    if [ -z "$appid" ]; then
+        continue
+    fi
+    if [ -n "${claimed[$appid]:-}" ]; then
+        continue
+    fi
+    dest="$apps_dir/$prefix$appid.desktop"
+    if [ "$(readlink -- "$dest" 2>/dev/null || true)" = "$src" ]; then
+        continue
+    fi
+    ln -sfn -- "$src" "$dest"
+    changed=1
+done
+
+if [ "$changed" -eq 1 ]; then
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$apps_dir"
+    fi
+    echo "steam-shortcuts-sync: applications dir updated"
+else
+    echo "steam-shortcuts-sync: no change"
+fi
