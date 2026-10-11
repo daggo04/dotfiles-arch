@@ -1,0 +1,6 @@
+{
+  "name": "gh-refs",
+  "version": "0.1.0",
+  "description": "Links #123 / owner/repo#123 in replies to GitHub issues and PRs, with hover cards and a detail pane",
+  "types": "./types/index.d.ts"
+}

@@ -22,6 +22,14 @@ Contents: the `design-doc` agent, which builds visual design documents as Claude
 Code Artifacts, plus its `design-doc-kit/` (page template, diagram primitives and
 pre-publish checklist, two worked example pages, and the standalone-export script).
 
+Also the `gh-refs` mod (`skills/gh-refs/`), a Claude Code mod (function-hook plugin,
+CC ≥ 2.1.287) that Claude Code auto-loads from `~/.claude/skills/`. It links `#123` and
+`owner/repo#123` in Claude's replies to GitHub issues/PRs (validated with `gh`), with a
+hover card and a `/gh-ref` detail pane. Test with `claude plugin test ~/.claude/skills/gh-refs`;
+the `.claude-plugin/types/` and `tsconfig.json` Claude Code writes beside it are gitignored.
+The file explorer is not ours: it's `filetree@claude-code-filetree` (data-goblin), installed
+from its marketplace.
+
 **This package is not Linux-only.** `~/.claude/agents/` is the same path on both
 systems, so it applies on the Windows box too.
 
