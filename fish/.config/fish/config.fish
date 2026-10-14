@@ -11,3 +11,10 @@ set -x VISUAL nvim
 set -x LC_TIME en_GB.UTF-8
 set -x SUDO_ASKPASS /usr/bin/ksshaskpass
 fnm env --use-on-cd --shell fish | source
+
+# pnpm
+set -gx PNPM_HOME "/home/dagobh/.local/share/pnpm"
+if not string match -q -- $PNPM_HOME $PATH
+  set -gx PATH "$PNPM_HOME" $PATH
+end
+# pnpm end
