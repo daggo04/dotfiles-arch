@@ -412,6 +412,45 @@ class AppStackManager {
   }
 }
 
+/**
+ * Collapse repeats within one app's stack, keeping the newest of each
+ * distinct (summary, body).
+ *
+ * A notification that arrives with expire-timeout -1 is asking the server to
+ * decide, and astal's default-timeout is itself -1, meaning never — so it sits
+ * in the daemon's list until something dismisses it. Apps that re-send a
+ * message rather than replacing it then pile up without bound: Claude Code
+ * signals "waiting for your input" on every turn, which is one state, not
+ * fourteen events.
+ *
+ * Dismissing the extras rather than just dropping them from `items` keeps the
+ * daemon's list in step with what is drawn, so the count badge, "Clear all"
+ * and the next bootstrap all agree with each other.
+ *
+ * Notifications an app replaces via replaces_id never reach this path — the
+ * daemon reuses the id, so the stack only ever holds the current version.
+ */
+function dedupeStack(mgr: AppStackManager) {
+  const seen = new Set<string>()
+  // notifs is newest-first, so the survivor of each group is the newest.
+  // Snapshot it, because removeNotif below invalidates the cached order.
+  for (const n of [...mgr.notifs]) {
+    const key = `${n.summary}\u0000${n.body}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      continue
+    }
+    // Drop it from the stack as well as from the daemon. dismiss() only
+    // reaches this list by way of the async `resolved` round trip, so leaving
+    // the bookkeeping to that alone lets a bulk collapse — a backlog being
+    // deduped at bootstrap — draw its count badge from entries that are
+    // already gone. removeNotif is idempotent, so the signal landing later
+    // is a no-op.
+    n.dismiss()
+    mgr.removeNotif(n.id)
+  }
+}
+
 // ── Main component ──────────────────────────────────
 export default function Notifications() {
   const notifd = Notifd.get_default()
@@ -513,6 +552,7 @@ export default function Notifications() {
     const appName = notif.app_name || "Unknown"
     const mgr = getOrCreateStack(appName, notif.app_icon || "")
     mgr.addNotif(notif)
+    dedupeStack(mgr)
     scheduleFlush()
   })
 
@@ -533,6 +573,12 @@ export default function Notifications() {
     const appName = notif.app_name || "Unknown"
     const mgr = getOrCreateStack(appName, notif.app_icon || "")
     mgr.addNotif(notif)
+  }
+  // The daemon's list outlives this widget — it survives an `ags quit` — so
+  // the backlog picked up above can already be full of repeats. Collapse it
+  // before the first render rather than inheriting someone else's pile.
+  for (const [, mgr] of stacks) {
+    dedupeStack(mgr)
   }
   for (const [, mgr] of stacks) {
     mgr.render()

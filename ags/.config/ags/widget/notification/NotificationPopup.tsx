@@ -8,7 +8,9 @@ import { toPangoMarkup, toPlainText } from "../../lib/notifMarkup"
 
 const POPUP_TIMEOUT = 5000
 
-function PopupCard(notif: Notifd.Notification, onDone: () => void): Gtk.Box {
+type Popup = { card: Gtk.Box; destroy: () => void }
+
+function PopupCard(notif: Notifd.Notification, onDone: () => void): Popup {
   const iconWidget = makeNotifIcon(
     notif,
     48,
@@ -98,16 +100,28 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Gtk.Box {
     },
   )
 
-  // If notification is resolved externally, remove popup
-  notif.connect("resolved", () => {
+  // Tear down this card's own timer and signal handler. Idempotent, because
+  // every path out of a popup ends here: the timer, the resolved signal, a
+  // click, and being replaced by a newer version of the same notification.
+  let resolvedId: number | null = null
+  function destroy() {
     if (timeoutId !== null) {
       GLib.source_remove(timeoutId)
       timeoutId = null
     }
+    if (resolvedId !== null) {
+      notif.disconnect(resolvedId)
+      resolvedId = null
+    }
+  }
+
+  // If notification is resolved externally, remove popup
+  resolvedId = notif.connect("resolved", () => {
+    destroy()
     onDone()
   })
 
-  return card
+  return { card, destroy }
 }
 
 export default function NotificationPopup() {
@@ -120,12 +134,13 @@ export default function NotificationPopup() {
     cssClasses: ["popup-container"],
   })
 
-  const popups: Map<number, Gtk.Box> = new Map()
+  const popups: Map<number, Popup> = new Map()
 
   function removePopup(id: number) {
-    const card = popups.get(id)
-    if (card) {
-      container.remove(card)
+    const popup = popups.get(id)
+    if (popup) {
+      popup.destroy()
+      container.remove(popup.card)
       popups.delete(id)
     }
     win.visible = popups.size > 0
@@ -142,9 +157,20 @@ export default function NotificationPopup() {
     const notif = notifd.get_notification(id)
     if (!notif) return
 
-    const card = PopupCard(notif, () => removePopup(id))
-    popups.set(id, card)
-    container.append(card)
+    // An app reusing replaces_id — Messenger in a browser does it for every
+    // new message in a thread — makes the daemon emit `notified` again with
+    // the same id. Retire the card already on screen for it first. Otherwise
+    // popups.set() below drops the map's only reference to that widget while
+    // it stays parented in the container, so nothing can ever remove it: it
+    // sits there for the rest of the session and reappears every time a later
+    // notification turns the window visible again. Its still-armed timer
+    // would also fire onDone() for this id and take the new card down early,
+    // which destroy() now prevents.
+    removePopup(id)
+
+    const popup = PopupCard(notif, () => removePopup(id))
+    popups.set(id, popup)
+    container.append(popup.card)
     win.visible = true
   }
 
