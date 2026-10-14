@@ -137,6 +137,14 @@ Read each screenshot for label collisions, overflow, geometry, and contrast. Che
 
 Fix what you find, regenerate the standalone copy, and re-render before publishing.
 
+**Close what you opened.** Call `mcp__chrome-devtools__close_page` on every page you
+opened, as soon as you are done reading its screenshot — including when you abandon a
+render half-way, and including the light-mode check above. The browser is a long-lived
+shared instance, not yours alone: pages you leave behind outlive your run, accumulate
+across builds, and leave the next caller guessing which are theirs. A closing
+`mcp__chrome-devtools__list_pages` showing none of your pages is part of finishing the
+job, not an optional tidy-up.
+
 ## Publishing
 
 Give the page a real name in `<title>`: a short noun phrase, two to four words, specific enough to pick out of a gallery of many. No explainer appended after a dash or colon — that belongs in the one-sentence `description` you pass at publish time. Pick a favicon emoji and keep it stable across redeploys of the same page.
