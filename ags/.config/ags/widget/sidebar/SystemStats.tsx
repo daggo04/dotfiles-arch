@@ -129,15 +129,13 @@ export default function SystemStats() {
     cssClass: "stat-gpu",
     colorKey: "gpu",
     interval: 5000,
-    pollCmd: ["bash", "-c", "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits"],
+    pollCmd: ["bash", "-c", "nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits"],
     parseData: (raw) => {
-      const parts = raw.trim().split(",").map((s) => s.trim())
-      const pct = parseInt(parts[0]) || 0
-      const vramUsed = ((parseInt(parts[1]) || 0) / 1024).toFixed(1)
-      const vramTotal = ((parseInt(parts[2]) || 0) / 1024).toFixed(1)
+      // Fill tracks VRAM, same as the label. GPU load lives in the top bar.
+      const [usedMiB, totalMiB] = raw.trim().split(",").map((s) => parseInt(s) || 0)
       return {
-        text: `${vramUsed} / ${vramTotal} GB`,
-        pct,
+        text: `${(usedMiB / 1024).toFixed(1)} / ${(totalMiB / 1024).toFixed(1)} GB`,
+        pct: totalMiB ? Math.round((usedMiB / totalMiB) * 100) : 0,
       }
     },
   })
