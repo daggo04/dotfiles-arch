@@ -3,14 +3,50 @@ import { Astal, Gtk } from "ags/gtk4"
 import Notifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import { emitExpandApp } from "../../lib/notifBus"
+import { classify } from "../../lib/notifFilter"
 import { makeNotifIcon } from "../../lib/notifIcon"
 import { toPangoMarkup, toPlainText } from "../../lib/notifMarkup"
 
-const POPUP_TIMEOUT = 5000
+// How long a popup stays up scales with how much there is to read: a one-word
+// "Mic muted" is gone in a moment, a paragraph gets time to be read. 50 ms a
+// character is an unhurried ~20 chars/s; the cap covers the body's 6-line
+// ellipsis, past which extra text buys nothing.
+const POPUP_BASE = 1500
+const POPUP_PER_CHAR = 50
+const POPUP_MIN = 2500
+const POPUP_MAX = 12000
+
+function popupTimeout(notif: Notifd.Notification): number {
+  const chars =
+    toPlainText(notif.summary).length + toPlainText(notif.body).length
+  return Math.min(
+    POPUP_MAX,
+    Math.max(POPUP_MIN, POPUP_BASE + chars * POPUP_PER_CHAR),
+  )
+}
 
 type Popup = { card: Gtk.Box; destroy: () => void }
 
-function PopupCard(notif: Notifd.Notification, onDone: () => void): Popup {
+/**
+ * The synchronous hint OSD-style senders use (`notify-send -h
+ * string:x-canonical-private-synchronous:<key>`): a newer notification with
+ * the same key takes over the older one's spot instead of stacking under it.
+ */
+function syncKey(notif: Notifd.Notification): string | null {
+  const v =
+    notif.get_hint("x-canonical-private-synchronous") ??
+    notif.get_hint("synchronous")
+  return v ? String(v.unpack()) : null
+}
+
+/**
+ * `onDone(resolved)`: resolved is true when the notification was closed from
+ * elsewhere, false when the popup itself ended it (timer or click).
+ */
+function PopupCard(
+  notif: Notifd.Notification,
+  onDone: (resolved: boolean) => void,
+): Popup {
   const iconWidget = makeNotifIcon(
     notif,
     48,
@@ -82,7 +118,7 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Popup {
     const sidebar = app.get_window("sidebar")
     if (sidebar) sidebar.visible = true
     emitExpandApp(notif.app_name || "Unknown")
-    onDone()
+    onDone(false)
   })
   card.add_controller(clickCtrl)
 
@@ -92,10 +128,10 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Popup {
   // call source_remove on a dead id and log a GLib-CRITICAL.
   let timeoutId: number | null = GLib.timeout_add(
     GLib.PRIORITY_DEFAULT,
-    POPUP_TIMEOUT,
+    popupTimeout(notif),
     () => {
       timeoutId = null
-      onDone()
+      onDone(false)
       return GLib.SOURCE_REMOVE
     },
   )
@@ -118,7 +154,7 @@ function PopupCard(notif: Notifd.Notification, onDone: () => void): Popup {
   // If notification is resolved externally, remove popup
   resolvedId = notif.connect("resolved", () => {
     destroy()
-    onDone()
+    onDone(true)
   })
 
   return { card, destroy }
@@ -135,6 +171,8 @@ export default function NotificationPopup() {
   })
 
   const popups: Map<number, Popup> = new Map()
+  // sync key → id of the popup currently holding it
+  const syncIds: Map<string, number> = new Map()
 
   function removePopup(id: number) {
     const popup = popups.get(id)
@@ -143,19 +181,25 @@ export default function NotificationPopup() {
       container.remove(popup.card)
       popups.delete(id)
     }
+    for (const [key, held] of syncIds) {
+      if (held === id) syncIds.delete(key)
+    }
     win.visible = popups.size > 0
   }
 
   function addPopup(id: number) {
-    // Don't show if sidebar is open
-    const sidebar = app.get_window("sidebar")
-    if (sidebar?.visible) return
-
-    // Don't show if DND is on
-    if (notifd.dont_disturb) return
-
     const notif = notifd.get_notification(id)
     if (!notif) return
+
+    // Hidden ones never show. Neither does anything while the sidebar is open
+    // or DND is on — and a popup-only notification that can't pop up has
+    // nowhere left to be seen, so close it rather than leave it in the daemon.
+    const kind = classify(notif)
+    const sidebar = app.get_window("sidebar")
+    if (kind === "hide" || sidebar?.visible || notifd.dont_disturb) {
+      if (kind !== "keep") notif.dismiss()
+      return
+    }
 
     // An app reusing replaces_id — Messenger in a browser does it for every
     // new message in a thread — makes the daemon emit `notified` again with
@@ -168,8 +212,23 @@ export default function NotificationPopup() {
     // which destroy() now prevents.
     removePopup(id)
 
-    const popup = PopupCard(notif, () => removePopup(id))
+    const sync = syncKey(notif)
+    const prev = sync === null ? undefined : syncIds.get(sync)
+    if (prev !== undefined) {
+      // Retiring the card skips its onDone, so close a popup-only one here.
+      const old = notifd.get_notification(prev)
+      removePopup(prev)
+      if (old && classify(old) === "popup-only") old.dismiss()
+    }
+
+    const popup = PopupCard(notif, (resolved) => {
+      removePopup(id)
+      // A popup-only notification lives as long as its card. Close it in the
+      // daemon too, or it lingers there unseen past the next AGS restart.
+      if (kind === "popup-only" && !resolved) notif.dismiss()
+    })
     popups.set(id, popup)
+    if (sync !== null) syncIds.set(sync, id)
     container.append(popup.card)
     win.visible = true
   }

@@ -3,6 +3,7 @@ import Notifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import cairo from "cairo"
 import { onExpandApp } from "../../lib/notifBus"
+import { classify } from "../../lib/notifFilter"
 import { makeNotifIcon } from "../../lib/notifIcon"
 import { toPangoMarkup, toPlainText } from "../../lib/notifMarkup"
 import {
@@ -548,6 +549,8 @@ export default function Notifications() {
   notifd.connect("notified", (_self: any, id: number) => {
     const notif = notifd.get_notification(id)
     if (!notif) return
+    // Popup-only and hidden ones are the popup's to close; just never list them.
+    if (classify(notif) !== "keep") return
 
     const appName = notif.app_name || "Unknown"
     const mgr = getOrCreateStack(appName, notif.app_icon || "")
@@ -568,8 +571,14 @@ export default function Notifications() {
     scheduleFlush()
   })
 
-  // Bootstrap with existing notifications
+  // Bootstrap with existing notifications. Anything not meant to be kept is
+  // left over from a popup that never got to close it (AGS quit mid-popup),
+  // so finish the job.
   for (const notif of notifd.get_notifications()) {
+    if (classify(notif) !== "keep") {
+      notif.dismiss()
+      continue
+    }
     const appName = notif.app_name || "Unknown"
     const mgr = getOrCreateStack(appName, notif.app_icon || "")
     mgr.addNotif(notif)
