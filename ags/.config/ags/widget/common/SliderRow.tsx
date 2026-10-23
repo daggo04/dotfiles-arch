@@ -20,7 +20,7 @@ export default function SliderRow({ icon, value, onChanged, min = 0, max = 1, st
         min={min}
         max={max}
         step={step}
-        onDragged={(self) => onChanged(self.value)}
+        onNotifyValue={(self) => onChanged(self.value)}
         class="slider"
       />
       {label !== undefined && (

@@ -127,7 +127,7 @@ function AudioChannel({
       <box spacing={8}>
         {dropdown
           ? dropdown
-          : <label label={createBinding(endpoint, "description").as((d: string) => d ?? "Unknown")} class="audio-device-name" hexpand halign={Gtk.Align.START} />
+          : <label label={createBinding(endpoint, "description").as((d) => d ?? "Unknown")} class="audio-device-name" hexpand halign={Gtk.Align.START} />
         }
       </box>
       <box spacing={8}>
