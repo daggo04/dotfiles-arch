@@ -84,9 +84,12 @@ export function makeNotifIcon(
     }
   }
 
+  // Nerd Font glyphs paint wider than the advance Pango reserves for them, so
+  // without a reserved width the glyph spills into whatever sits next to it.
   return new Gtk.Label({
     label: FALLBACK_GLYPH,
     cssClasses: fallbackClasses,
     valign: Gtk.Align.CENTER,
+    widthRequest: size,
   })
 }

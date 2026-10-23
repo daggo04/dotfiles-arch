@@ -8,8 +8,16 @@ import Brightness from "./Brightness"
 import BlueLight from "./BlueLight"
 import SystemStats from "./SystemStats"
 import PowerMenu from "./PowerMenu"
+import { SIDEBAR_WIDTH } from "../../config"
+
+// The range every section was checked at. Below it the brightness and blue
+// light sliders, which get whatever the fixed-width clock leaves over, shrink
+// until their handle collides with the icons.
+const MIN_WIDTH = 420
+const MAX_WIDTH = 640
 
 export default function Sidebar() {
+  const width = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, SIDEBAR_WIDTH))
   const { TOP, RIGHT, BOTTOM } = Astal.WindowAnchor
 
   const win = (
@@ -27,7 +35,7 @@ export default function Sidebar() {
       <box
         class="sidebar-container"
         orientation={Gtk.Orientation.VERTICAL}
-        widthRequest={450}
+        widthRequest={width}
       >
         <Gtk.ScrolledWindow
           vexpand

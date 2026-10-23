@@ -38,6 +38,7 @@ function NotifCard(
   notif: Notifd.Notification,
   onAnimateOut?: (id: number) => void,
   activatable: boolean = false,
+  stackCount: number = 1,
 ): Gtk.Revealer {
   const summary = new Gtk.Label({
     label: toPlainText(notif.summary) || "Notification",
@@ -68,6 +69,18 @@ function NotifCard(
 
   const titleRow = new Gtk.Box({ spacing: 4 })
   titleRow.append(summary)
+  // A collapsed stack's count rides in the title row. As an overlay pinned to
+  // the card's bottom-right it landed on top of the dismiss button whenever
+  // the front card was a one-liner.
+  if (stackCount > 1) {
+    titleRow.append(
+      new Gtk.Label({
+        label: `${stackCount}`,
+        cssClasses: ["notif-count"],
+        valign: Gtk.Align.CENTER,
+      }),
+    )
+  }
   titleRow.append(time)
   titleRow.append(dismissBtn)
 
@@ -80,13 +93,16 @@ function NotifCard(
 
   const bodyMarkup = toPangoMarkup(notif.body)
   if (bodyMarkup) {
+    // Fill the card and wrap at its edge, so the text uses whatever width the
+    // sidebar is configured to. WORD_CHAR lets a token with no break points (a
+    // hash, a token-laden URL) wrap mid-word instead of widening the sidebar.
     const body = new Gtk.Label({
       label: bodyMarkup,
       cssClasses: ["notif-body"],
-      halign: Gtk.Align.START,
+      halign: Gtk.Align.FILL,
       xalign: 0,
       wrap: true,
-      maxWidthChars: 50,
+      wrapMode: 2, // Pango.WrapMode.WORD_CHAR
       useMarkup: true,
     })
     card.append(body)
@@ -284,27 +300,14 @@ class AppStackManager {
     // exactly the strip the slabs peek through.
     const front = new Gtk.Overlay({ valign: Gtk.Align.START })
     front.set_overflow(Gtk.Overflow.VISIBLE)
-    front.set_child(NotifCard(notifs[0], (id) => this.markAnimatingOut(id)))
+    front.set_child(
+      NotifCard(notifs[0], (id) => this.markAnimatingOut(id), false, notifs.length),
+    )
     front.add_overlay(makeFloatingIcon(notifs[0], 24))
     front.marginBottom = depth * PEEK
 
     cardLayer.add_overlay(front)
     cardLayer.set_measure_overlay(front, true)
-
-    // Count badge — bottom-right, clear of the peek strip
-    const countBox = new Gtk.Box({
-      halign: Gtk.Align.END,
-      valign: Gtk.Align.END,
-      marginEnd: 16,
-      marginBottom: depth * PEEK + 4,
-    })
-    countBox.append(
-      new Gtk.Label({
-        label: `${notifs.length}`,
-        cssClasses: ["notif-count"],
-      }),
-    )
-    cardLayer.add_overlay(countBox)
 
     // Click to expand
     const clickCtrl = new Gtk.GestureClick()
