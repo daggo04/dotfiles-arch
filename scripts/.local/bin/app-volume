@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Nudge the volume of the app that owns the focused window.
+
+  app-volume +5
+  app-volume -5
+
+Matches PipeWire output streams whose process is the window's process or one
+of its children (browsers and Electron apps play audio from a child process),
+falling back to the window class for apps where the pids don't line up.
+"""
+import fcntl
+import json
+import os
+import subprocess
+import sys
+
+STEP = sys.argv[1] if len(sys.argv) > 1 else "+5"
+SYNC = "string:x-canonical-private-synchronous:appvolume"
+
+
+def run(*cmd):
+    return subprocess.run(cmd, capture_output=True, text=True).stdout
+
+
+def notify(summary, icon="audio-volume-medium"):
+    subprocess.run(["notify-send", "-e", "-a", "App volume", "-h", SYNC, "-i", icon, summary])
+
+
+def descendants(root):
+    children = {}
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            # The comm field can contain spaces, so split after its closing paren.
+            stat = open(f"/proc/{entry}/stat").read()
+        except OSError:
+            continue
+        ppid = int(stat.rsplit(")", 1)[1].split()[1])
+        children.setdefault(ppid, []).append(int(entry))
+    found, todo = set(), [root]
+    while todo:
+        pid = todo.pop()
+        found.add(pid)
+        todo.extend(children.get(pid, []))
+    return found
+
+
+# Spinning the knob fires several of these at once; take turns so no step is lost.
+lock = open(os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "app-volume.lock"), "w")
+fcntl.flock(lock, fcntl.LOCK_EX)
+
+win = json.loads(run("hyprctl", "activewindow", "-j") or "{}")
+if not win.get("pid"):
+    sys.exit(0)
+pids = descendants(win["pid"])
+cls = win.get("class", "").lower()
+
+streams = []
+for obj in json.loads(run("pw-dump")):
+    props = (obj.get("info") or {}).get("props") or {}
+    if props.get("media.class") != "Stream/Output/Audio":
+        continue
+    try:
+        pid = int(props.get("application.process.id", -1))
+    except ValueError:
+        pid = -1
+    names = {str(props.get(k, "")).lower() for k in ("application.name", "application.process.binary")}
+    if pid in pids or (cls and cls in names):
+        streams.append((obj["id"], props.get("application.name") or win.get("class")))
+
+if not streams:
+    notify(f"No audio from {win.get('class') or 'this window'}", "audio-volume-muted")
+    sys.exit(0)
+
+sign, amount = STEP[0], STEP[1:]
+for node, _ in streams:
+    run("wpctl", "set-volume", "-l", "1", str(node), f"{amount}%{sign}")
+
+# "Volume: 0.45" or "Volume: 0.45 [MUTED]"
+level = round(float(run("wpctl", "get-volume", str(streams[0][0])).split()[1]) * 100)
+icon = "audio-volume-low" if level < 34 else "audio-volume-medium" if level < 67 else "audio-volume-high"
+notify(f"{streams[0][1]}  {level}%", icon)

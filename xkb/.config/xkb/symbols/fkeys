@@ -1,6 +1,7 @@
-// Stock xkb maps F17/F18/F20-F22 to XF86Launch8/9, XF86AudioMicMute and
+// Stock xkb maps F17/F18/F20-F24 to XF86Launch8/9, XF86AudioMicMute and
 // XF86Touchpad* keysyms, which games can't bind (and F20 mutes the mic).
-// The G502's extra buttons send F17-F21, so give them plain F-key keysyms.
+// The G502's extra buttons send F17-F21 and the Keychron knob sends F23/F24,
+// so give them plain F-key keysyms.
 // F13-F16 are left alone: the Keychron's physical keys rely on them (F16 = dictation).
 partial alphanumeric_keys
 xkb_symbols "real" {
@@ -10,4 +11,8 @@ xkb_symbols "real" {
     key <FK20> { [ F20 ] };
     key <FK21> { [ F21 ] };
     key <FK22> { [ F22 ] };
+    // Stock F23/F24 also have a Super/Ctrl level (XF86Assistant, XF86TouchpadToggle);
+    // ONE_LEVEL drops it so Super+knob still reads as F23/F24.
+    key <FK23> { type[Group1] = "ONE_LEVEL", [ F23 ] };
+    key <FK24> { type[Group1] = "ONE_LEVEL", [ F24 ] };
 };

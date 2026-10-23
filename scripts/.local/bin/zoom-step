@@ -1,0 +1,22 @@
+#!/bin/sh
+# Step Hyprland's screen zoom, which magnifies around the cursor.
+#
+#   zoom-step in
+#   zoom-step out
+#   zoom-step reset
+set -e
+
+cur=$(hyprctl getoption cursor:zoom_factor -j | jq .float)
+
+# 1 is no zoom; past 10 nothing on screen is readable anyway.
+new=$(awk -v cur="$cur" -v dir="$1" 'BEGIN {
+    if (dir == "in") z = cur * 1.25
+    else if (dir == "out") z = cur / 1.25
+    else if (dir == "reset") z = 1
+    else exit 1
+    if (z < 1.05) z = 1
+    if (z > 10) z = 10
+    printf "%.3f", z
+}') || { echo "usage: zoom-step in|out|reset" >&2; exit 1; }
+
+hyprctl keyword cursor:zoom_factor "$new" >/dev/null
