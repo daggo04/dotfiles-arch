@@ -1,0 +1,5 @@
+// User rules layered on the system evdev rules (libxkbcommon reads $XDG_CONFIG_HOME/xkb).
+! include %S/evdev
+
+! option = symbols
+  fkeys:real = +fkeys(real)
