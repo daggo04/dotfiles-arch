@@ -18,3 +18,12 @@ if not string match -q -- $PNPM_HOME $PATH
   set -gx PATH "$PNPM_HOME" $PATH
 end
 # pnpm end
+
+# app scopes (uwsm): expand to the full systemd commands
+if status is-interactive
+    abbr -a apps    --set-cursor "systemctl --user list-units 'app-*%*'"
+    abbr -a apptree "systemd-cgls --no-pager --user-unit app.slice"
+    abbr -a apptop  "systemd-cgtop /user.slice/user-1000.slice/user@1000.service/app.slice"
+    abbr -a appstat --set-cursor "systemctl --user status 'app-*%*' -n0 --no-pager"
+    abbr -a appkill --set-cursor "systemctl --user stop -T 'app-*%*'"
+end
