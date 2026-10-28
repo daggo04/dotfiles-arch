@@ -23,7 +23,7 @@ shopt -s nullglob
 for f in "$session_dir"/*.kitty-session "$session_dir"/*.kitty_session "$session_dir"/*.session; do
     name=${f##*/}    # basename
     name=${name%.*}  # strip extension
-    commands["󰆍  Kitty: ${name//-/ }"]="kitty --session $(printf '%q' "$f")"
+    commands["󰆍  Kitty: ${name//-/ }"]="uwsm app -- kitty --session $(printf '%q' "$f")"
 done
 shopt -u nullglob
 

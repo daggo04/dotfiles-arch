@@ -6,6 +6,8 @@ configuration {
     display-filebrowser:         "󰉋 Files";
     display-keybinds:            "󰌌 Keybinds";
     drun-display-format:         "{name}";
+    run-command:                 "uwsm app -- {cmd}";
+    run-shell-command:           "uwsm app -- {terminal} -e {cmd}";
     font:                        "FiraCode Nerd Font 13";
     sort:                        true;
     sorting-method:              "fzf";
