@@ -28,3 +28,8 @@ if status is-interactive
     abbr -a appstat --set-cursor "systemctl --user status 'app-*%*' -n0 --no-pager"
     abbr -a appkill --set-cursor "systemctl --user stop -T 'app-*%*'"
 end
+
+# zoxide: `z <part-of-path>` jumps to frequent dirs, `zi` picks interactively
+if status is-interactive
+    zoxide init fish | source
+end
