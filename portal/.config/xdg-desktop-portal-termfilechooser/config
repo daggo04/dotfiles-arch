@@ -1,0 +1,8 @@
+[filechooser]
+cmd=yazi-wrapper.sh
+default_dir=$HOME/Downloads
+; --class so Hyprland can float it (windowrule in hypr/hyprland.conf)
+; no spaces inside args: the portal strips quotes before word-splitting
+env=TERMCMD=kitty --class termfilechooser --title FileChooser
+open_mode=suggested
+save_mode=suggested
