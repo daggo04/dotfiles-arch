@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# cliphist-store — clipboard watcher hook, replaces a bare `cliphist store`.
+#
+# Wired in hyprland.conf as:
+#   exec-once = wl-paste --watch ~/.local/bin/cliphist-store
+#
+# It does two things cliphist can't do on its own:
+#
+# 1. Keeps images. `wl-paste --watch` with no --type prefers a text type, so
+#    copying an image in a browser (which offers image/png AND text/html) used
+#    to store the <img> HTML and drop the picture. If the clipboard offers an
+#    image but no plain text, we re-read it as the image instead. (Running two
+#    watchers, --type text and --type image, would store BOTH for such copies.)
+#
+# 2. Records a timestamp. cliphist's DB is just id -> bytes, no time. After each
+#    store we append "<id> <epoch>" to $times for the newest id; the rofi picker
+#    (~/.config/rofi/scripts/clipboard.py) reads it to show "3 min ago".
+#
+# CLIPBOARD_STATE (sensitive/clear, set by wl-paste) is inherited, so cliphist
+# still skips password-manager copies; then the newest id doesn't change and
+# no timestamp is written.
+
+set -u
+
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/cliphist"
+times="$dir/times"
+mkdir -p "$dir"
+
+# Text and image events can fire close together; serialise store + timestamp.
+exec 9>"$dir/times.lock"
+flock 9
+
+types=$(wl-paste --list-types 2>/dev/null)
+has_image=0 has_text=0
+while IFS= read -r t; do
+    case $t in
+        image/*) has_image=1 ;;
+        text/plain*|UTF8_STRING|STRING|TEXT) has_text=1 ;;
+    esac
+done <<<"$types"
+
+if (( has_image && ! has_text )); then
+    exec 0</dev/null                     # drop the text/html wl-paste handed us
+    wl-paste --no-newline --type image | cliphist store
+else
+    cliphist store                       # stdin = what wl-paste --watch picked
+fi
+
+newest=$(cliphist list | head -n1)
+id=${newest%%$'\t'*}
+[[ $id =~ ^[0-9]+$ ]] || exit 0
+
+# ids only grow, so comparing against the last recorded one is enough.
+last=$(tail -n1 "$times" 2>/dev/null)
+[[ ${last%% *} == "$id" ]] || printf '%s %(%s)T\n' "$id" -1 >>"$times"

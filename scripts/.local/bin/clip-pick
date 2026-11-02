@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""clip-pick — fzf clipboard history picker (SUPER+V), runs in a floating kitty.
+
+Wired in hyprland.conf as:
+    bindd = $mainMod, V, Clipboard history, exec, ~/.local/bin/clip-pick --toggle
+    windowrule = match:class clip-pick, float on, size ..., center on
+
+Why fzf and not rofi: rofi's fuzzy sort penalises every character AFTER the
+match (helper.c, GAP_SCORE on the trailing run) and highlights with a separate
+first-fit regex, so on long clipboard paragraphs it ranks junk first and lights
+up the wrong letters. fzf scores the best alignment and highlights that same one.
+
+Search tips (fzf syntax): plain text is fuzzy and smart-case; 'word = exact;
+^word = starts with; !word = exclude; space = AND.
+
+Modes:
+    clip-pick                 the picker (needs a terminal)
+    clip-pick --list          rows for fzf: "<id>\\t<when>\\t<preview>"
+    clip-pick --preview ID    preview pane (text, or the image via kitty graphics)
+    clip-pick --delete ID     remove an entry (ctrl-d)
+
+Timestamps come from ~/.cache/cliphist/times, written by cliphist-store
+(cliphist itself stores no time). Entries older than that show "—".
+"""
+
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "cliphist"
+TIMES = CACHE / "times"
+IMAGES = CACHE / "images"
+SELF = str(Path(__file__).resolve())
+
+# cliphist's placeholder for non-text entries, e.g. "[[ binary data 248 KiB png 1131x635 ]]"
+BINARY = re.compile(r"^\[\[ binary data (?P<size>.+?) (?P<fmt>[a-z0-9]+) (?P<dims>\d+x\d+) \]\]$")
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")   # keeps \t and \n
+
+# monokai-spotlight palette (same as the rofi theme)
+RED, TEXT, DIMMED, BORDER, SELECTED = "#ff657a", "#eaf2f1", "#888d94", "#3a3d4b", "#5e394a"
+DIM = "\x1b[38;2;136;141;148m"
+RESET = "\x1b[0m"
+
+
+# ---------------------------------------------------------------- helpers ---
+
+def load_times() -> dict[str, int]:
+    out = {}
+    try:
+        for line in TIMES.read_text().splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                out[parts[0]] = int(parts[1])
+    except OSError:
+        pass
+    return out
+
+
+def days_ago(ts: int, now: float) -> int:
+    midnight = lambda t: time.mktime(time.localtime(t)[:3] + (0, 0, 0, 0, 0, -1))
+    return round((midnight(now) - midnight(ts)) / 86400)
+
+
+def when_row(ts: int | None, now: float) -> str:
+    """The dim first line of each row."""
+    if ts is None:
+        return "—"
+    age, t = now - ts, time.localtime(ts)
+    clock = time.strftime("%H:%M", t)
+    if age < 60:
+        return "just now"
+    if age < 3600:
+        return f"{int(age // 60)} min ago · {clock}"
+    d = days_ago(ts, now)
+    if d == 0:
+        return f"{int(age // 3600)} h ago · {clock}"
+    if d == 1:
+        return f"yesterday · {clock}"
+    if d < 7:
+        return time.strftime("%A · %H:%M", t)
+    return time.strftime("%d.%m · %H:%M" if t.tm_year == time.localtime(now).tm_year else "%d.%m.%Y · %H:%M", t)
+
+
+def when_long(ts: int | None, now: float) -> str:
+    """Preview header: relative + exact."""
+    if ts is None:
+        return "copied before timestamps were recorded"
+    age, t = now - ts, time.localtime(ts)
+    exact = time.strftime("%d.%m.%Y %H:%M", t)
+    if age < 60:
+        rel = "just now"
+    elif age < 3600:
+        rel = f"{int(age // 60)} min ago"
+    elif days_ago(ts, now) == 0:
+        rel = f"{int(age // 3600)} h ago"
+    elif days_ago(ts, now) == 1:
+        rel = "yesterday"
+    else:
+        rel = f"{days_ago(ts, now)} days ago"
+    return f"{rel} · {exact}"
+
+
+def cliphist_list(width: int = 400) -> list[tuple[str, str]]:
+    raw = subprocess.run(
+        ["cliphist", "-preview-width", str(width), "list"], capture_output=True, check=True
+    ).stdout.decode("utf-8", errors="replace")
+    rows = []
+    for line in raw.splitlines():
+        cid, _, preview = line.partition("\t")
+        if cid.isdigit():
+            rows.append((cid, preview))
+    return rows
+
+
+def decode(cid: str) -> bytes:
+    return subprocess.run(["cliphist", "decode", cid], capture_output=True).stdout
+
+
+def prune(ids: set[str]) -> None:
+    """Drop cached images and timestamps for entries cliphist has evicted."""
+    if IMAGES.is_dir():
+        for f in IMAGES.iterdir():
+            if f.stem not in ids:
+                f.unlink(missing_ok=True)
+    times = load_times()
+    if len(times) - len(ids & times.keys()) > 200:
+        import fcntl
+        newest = max(map(int, ids), default=0)
+        with open(CACHE / "times.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)       # same lock cliphist-store uses
+            fresh = load_times()
+            TIMES.write_text("".join(
+                f"{k} {v}\n" for k, v in fresh.items() if k in ids or int(k) > newest
+            ))
+
+
+# ------------------------------------------------------------------ modes ---
+
+# Row text cap. fzf word-wraps it, so ~300 chars is about three lines in the
+# list pane. Search only sees this much too (cliphist previews cap at 400 anyway).
+ROW_CHARS = 300
+
+
+def mode_list() -> None:
+    """NUL-separated multi-line rows for fzf --read0.
+
+    Each row is  "<id>\\t <when>\\n\\t<text>".  Split on \\t that is three fields:
+    the id (hidden, returned by --accept-nth 1), " <when>\\n\\t" (shown, not
+    searched) and the text (shown + searched via --nth 2, which counts the
+    fields left after --with-nth 2..). The \\t that starts the text line renders
+    one column wide under --tabstop=1, lining up with the leading space before
+    <when> and with --wrap-sign on wrapped lines.
+    """
+    times, now = load_times(), time.time()
+    rows = cliphist_list()
+    out = []
+    for cid, preview in rows:
+        if m := BINARY.match(preview):
+            text = f"󰋩  Image · {m['fmt'].upper()} · {m['dims'].replace('x', '×')} · {m['size']}"
+        else:
+            text = " ".join(CONTROL.sub(" ", preview).split())
+            if len(text) > ROW_CHARS:
+                text = text[:ROW_CHARS].rstrip() + " …"
+        out.append(f"{cid}\t {DIM}{when_row(times.get(cid), now)}{RESET}\n\t{text}\0")
+    sys.stdout.write("".join(out))
+    prune({cid for cid, _ in rows})
+
+
+def mode_preview(cid: str) -> None:
+    times = load_times()
+    rows = dict(cliphist_list(60))
+    preview = rows.get(cid, "")
+    head = when_long(times.get(cid), time.time())
+
+    if m := BINARY.match(preview):
+        print(f"{DIM}{head}  ·  {m['fmt'].upper()} {m['dims'].replace('x', '×')}  ·  {m['size']}{RESET}\n")
+        IMAGES.mkdir(parents=True, exist_ok=True)
+        path = IMAGES / f"{cid}.{m['fmt']}"
+        if not path.exists():
+            path.write_bytes(decode(cid))
+        cols = int(os.environ.get("FZF_PREVIEW_COLUMNS", 80))
+        lines = int(os.environ.get("FZF_PREVIEW_LINES", 30)) - 2     # minus the header
+        # Recipe from /usr/share/fzf/fzf-preview.sh: unicode placeholders let fzf
+        # treat the image as text; drop the trailing reset-only line or fzf shows
+        # a scroll indicator.
+        img = subprocess.run(
+            ["kitten", "icat", "--clear", "--transfer-mode=memory", "--unicode-placeholder",
+             "--stdin=no", f"--place={cols}x{lines}@0x0", str(path)],
+            capture_output=True,
+        ).stdout.decode("utf-8", errors="replace")
+        body = img.rsplit("\n", 1)[0] if "\n" in img else img
+        sys.stdout.write(body + RESET + "\n")
+        return
+
+    data = decode(cid)[:200_000].decode("utf-8", errors="replace")
+    n_lines = data.count("\n") + (0 if data.endswith("\n") else 1)
+    print(f"{DIM}{head}  ·  {len(data):,} chars  ·  {n_lines:,} line{'s' * (n_lines != 1)}{RESET}\n")
+    # Escape sequences in copied text would repaint the preview; show them as ␛.
+    sys.stdout.write(CONTROL.sub(lambda c: "␛" if c.group() == "\x1b" else " ", data))
+
+
+def mode_delete(cid: str) -> None:
+    subprocess.run(["cliphist", "delete"], input=f"{cid}\t\n".encode())
+    for f in IMAGES.glob(f"{cid}.*"):
+        f.unlink(missing_ok=True)
+
+
+def mode_pick() -> int:
+    rows = subprocess.run([SELF, "--list"], capture_output=True).stdout
+    colors = ",".join([
+        f"fg:{TEXT}", f"fg+:{TEXT}", f"bg+:{SELECTED}", f"hl:{RED}:bold", f"hl+:{RED}:bold",
+        f"prompt:{RED}", f"pointer:{RED}", f"info:{DIMMED}", f"header:{DIMMED}",
+        f"border:{BORDER}", f"separator:{BORDER}", f"scrollbar:{BORDER}",
+        f"preview-border:{BORDER}", f"input-border:{BORDER}", f"label:{DIMMED}",
+        f"gap-line:{BORDER}", "gutter:-1",
+    ])
+    fzf = subprocess.run(
+        [
+            "fzf",
+            "--ansi",
+            "--read0",                    # rows are multi-line (see mode_list)
+            "--delimiter", "\t",
+            "--with-nth", "2..",          # show when + text
+            "--nth", "2",                 # but only search the text
+            "--accept-nth", "1",          # and print the cliphist id
+            "--scheme", "history",        # ties keep newest-first order
+            "--wrap=word", "--wrap-sign", " ", "--tabstop", "1",
+            "--gap", "--gap-line", "─",   # thin rule between rows
+            "--highlight-line",
+            "--layout", "reverse",
+            "--info", "inline-right",
+            "--input-border", "rounded",
+            "--prompt", "󰅌  ",
+            "--pointer", "▌",
+            "--ellipsis", "…",
+            "--header", "enter copy · ctrl-d delete · ctrl-/ preview · 'exact ^start !not",
+            "--color", colors,
+            "--preview", f"{SELF} --preview {{1}}",
+            "--preview-window", "right,45%,wrap,border-left",
+            "--bind", f"ctrl-d:execute-silent({SELF} --delete {{1}})+reload({SELF} --list)",
+            "--bind", "ctrl-/:toggle-preview",
+        ],
+        input=rows,
+        stdout=subprocess.PIPE,
+    )
+    cid = fzf.stdout.decode().strip()
+    if fzf.returncode != 0 or not cid.isdigit():
+        return 0
+    # wl-copy forks a background server that owns the selection. Give it its own
+    # session (survives kitty closing) and NO handle on kitty's terminal: if it
+    # inherits stdout/stderr, kitty keeps the window open as long as it lives.
+    subprocess.run(["wl-copy"], input=decode(cid), start_new_session=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return 0
+
+
+def mode_toggle() -> int:
+    """SUPER+V: close the picker if it's open, otherwise open it.
+
+    Done here rather than `pkill -f ... || kitty ...` in the bind, because that
+    shell's own command line contains the pattern, so pkill kills the shell and
+    the launch half never runs.
+    """
+    import signal
+    found = False
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            argv = (proc / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        if argv[0].endswith(b"kitty") and argv[1:3] == [b"--class", b"clip-pick"]:  # see execvp below
+            os.kill(int(proc.name), signal.SIGTERM)
+            found = True
+    if not found:
+        os.execvp("uwsm", ["uwsm", "app", "--", "kitty", "--class", "clip-pick",
+                           "-o", "background_opacity=0.96", "-o", "window_padding_width=14",
+                           SELF])
+    return 0
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if args[:1] == ["--toggle"]:
+        return mode_toggle()
+    if args[:1] == ["--list"]:
+        mode_list()
+    elif args[:1] == ["--preview"] and len(args) == 2:
+        mode_preview(args[1])
+    elif args[:1] == ["--delete"] and len(args) == 2:
+        mode_delete(args[1])
+    elif not args:
+        return mode_pick()
+    else:
+        print(__doc__, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
