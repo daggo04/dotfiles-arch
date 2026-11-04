@@ -31,7 +31,7 @@ one is a snapshot. Re-copy it after changing anything in the GUI.
   --background` in `hypr`). The GUI is what pushes the binds to the daemon.
 - The `xkb` package (`kb_options = fkeys:real`). Without it F17/F18 come out
   as XF86Launch8/9 and **F20 is XF86AudioMicMute**.
-- The fast-scroll binds in `hypr` (hold Scroll Lock → `scroll_factor` 5).
+- The fast-scroll binds in `hypr` (hold Scroll Lock → 2x, Shift+Scroll Lock → 10x; base 1x).
 
 ## Restoring
 
