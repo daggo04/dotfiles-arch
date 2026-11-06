@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# herdr-space NAME FOLDER — jump to the Herdr space called NAME, creating it
+# (in FOLDER, running claude) if it isn't open. Raises the Herdr window first,
+# starting the app if it's closed. Bound to Super+A/G/D in hyprland.conf.
+#
+# Agents run in herdr-core, not the window, so a closed window still has its
+# spaces — we just need a window to talk to.
+set -euo pipefail
+
+name=${1:?usage: herdr-space NAME FOLDER}
+folder=${2:?usage: herdr-space NAME FOLDER}
+folder=${folder/#\~/$HOME}
+
+# Claude, then a shell when it exits, so quitting claude doesn't close the space.
+argv='["fish","-c","claude; exec fish"]'
+
+if ! herdr-app status >/dev/null 2>&1; then
+    setsid -f herdr-app >/dev/null 2>&1
+    for _ in $(seq 50); do
+        herdr-app status >/dev/null 2>&1 && break
+        sleep 0.1
+    done
+fi
+hyprctl dispatch focuswindow class:herdr-app >/dev/null
+
+id=$(herdr-app ls | jq -r --arg n "$name" \
+    '[.spaces[] | select(.machine == null and .name == $n)][0].id // empty')
+
+if [[ -n $id ]]; then
+    herdr-app do space.select --id "$id" >/dev/null
+else
+    herdr-app do space.new --name "$name" --folder "$folder" \
+        --machine '' --argv "$argv" >/dev/null
+fi
