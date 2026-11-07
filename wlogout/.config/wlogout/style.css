@@ -63,3 +63,10 @@ button:hover {
 #hibernate:hover {
     background-image: image(url("./icons/hibernate-hover.png"));
 }
+
+#suspend {
+    background-image: image(url("./icons/sleep.png"));
+}
+#suspend:hover {
+    background-image: image(url("./icons/sleep-hover.png"));
+}
