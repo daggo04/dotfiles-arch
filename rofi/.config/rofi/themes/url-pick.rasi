@@ -1,0 +1,45 @@
+/* url-pick — tiny browser menu that pops up at the mouse.
+ * Builds on the spotlight theme; url-pick sets the x/y offsets at runtime. */
+@import "monokai-spotlight.rasi"
+
+window {
+    width:              260px;
+    location:           north west;
+    anchor:             north west;
+    border-radius:      12px;
+}
+
+mainbox {
+    children:           [ "message", "listview" ];
+}
+
+message {
+    background-color:   transparent;
+    margin:             6px 10px 2px 10px;
+    padding:            4px 6px;
+}
+
+textbox {
+    text-color:         @dimmed;
+    font:               "FiraCode Nerd Font 9";
+}
+
+listview {
+    lines:              5;
+    dynamic:            true;
+    margin:             0px 4px;
+    padding:            0px 2px 6px 2px;
+    spacing:            1px;
+}
+
+element {
+    padding:            5px 10px;
+    spacing:            10px;
+    border-radius:      8px;
+    border:             1px solid;
+    border-color:       transparent;
+}
+
+element-icon {
+    size:               20px;
+}

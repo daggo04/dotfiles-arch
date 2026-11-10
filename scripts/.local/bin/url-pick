@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# url-pick — tiny "which browser?" menu for links, popped up at the mouse.
+#
+# Wired up as:
+#   - the default http/https handler (url-pick.desktop, set via xdg-mime), so
+#     links from any app (Herdr, Discord, Notion...) land here
+#   - kitty.conf `open_url_with ~/.local/bin/url-pick` (+ ctrl+click mouse_map)
+#
+# Menu (rofi, theme ~/.config/rofi/themes/url-pick.rasi):
+#   hover highlights a row, click opens it · or press its letter · Enter = top
+#   row (Vivaldi) · Esc / q / click outside = cancel.
+#
+# Why rofi and not fzf-in-kitty (like clip-pick): fzf can't highlight the row
+# under the mouse, and rofi pops up faster than a fresh kitty window. rofi's weak
+# fuzzy ranking (why clip-pick uses fzf) doesn't matter for five fixed rows.
+#
+# Non-web links (file://, mailto:, ...) skip the menu and go to xdg-open.
+# Undo the default-handler part:
+#   xdg-mime default vivaldi-stable.desktop x-scheme-handler/http x-scheme-handler/https
+
+set -u
+
+# key | label | icon | command (the URL is appended)
+BROWSERS=(
+    "v|Vivaldi|vivaldi|vivaldi-stable"
+    "f|Firefox|firefox|firefox"
+    "d|Firefox Dev|firefox-developer-edition|firefox-developer-edition"
+    "c|Chromium|chromium|chromium"
+    "y|Copy URL|edit-copy|COPY"
+)
+
+# Must match url-pick.rasi; used to keep the menu on-screen near the edges.
+MENU_W=260
+MENU_H=215
+# Offset from the mouse to the menu's top-left: puts the pointer on the first row.
+NUDGE_X=30
+NUDGE_Y=45
+
+# Start a program fully detached: own session, no handle on our stdio.
+detach() {
+    setsid -f "$@" </dev/null >/dev/null 2>&1
+}
+
+url=${1:-}
+if [[ -z $url ]]; then
+    echo "usage: url-pick <url>" >&2
+    exit 2
+fi
+if [[ $url != http://* && $url != https://* ]]; then
+    exec xdg-open "$url"
+fi
+
+# ── Position: at the mouse, clamped to the focused monitor ──
+# rofi's offsets count from the usable area (inside Waybar's reserved strip),
+# the cursor from the monitor's corner — so take the reserved edges off.
+read -r mx my mw mh rl rt rr rb < <(hyprctl monitors -j | jq -r '.[] | select(.focused) |
+    "\(.x) \(.y) \(.width / .scale | floor) \(.height / .scale | floor) \(.reserved | map(tostring) | join(" "))"')
+mw=$((mw - rl - rr)); mh=$((mh - rt - rb))
+IFS=', ' read -r cx cy < <(hyprctl cursorpos)
+x=$((cx - mx - rl - NUDGE_X)); y=$((cy - my - rt - NUDGE_Y))
+((x > mw - MENU_W)) && x=$((mw - MENU_W))
+((y > mh - MENU_H)) && y=$((mh - MENU_H))
+((x < 0)) && x=0
+((y < 0)) && y=0
+
+# ── Rows and hotkeys ──
+# Row = pango markup (dim hotkey letter, then the name) + "\0icon\x1f<name>".
+# Printed straight into rofi: a bash variable can't hold the NUL separator.
+rows() {
+    local entry key label icon
+    for entry in "${BROWSERS[@]}"; do
+        IFS='|' read -r key label icon _ <<<"$entry"
+        printf "<span alpha='45%%'>%s</span>  %s\0icon\x1f%s\n" "$key" "$label" "$icon"
+    done
+}
+keys=() i=1
+for entry in "${BROWSERS[@]}"; do
+    keys+=(-kb-custom-$i "${entry%%|*}"); i=$((i + 1))
+done
+
+# Shorten long URLs for the header line (markup-escaped).
+shown=$url
+((${#shown} > 34)) && shown="${shown:0:33}…"
+shown=${shown//&/&amp;}; shown=${shown//</&lt;}; shown=${shown//>/&gt;}
+
+idx=$(rows | rofi -dmenu \
+    -theme ~/.config/rofi/themes/url-pick.rasi \
+    -theme-str "window { x-offset: ${x}px; y-offset: ${y}px; }" \
+    -mesg "$shown" \
+    -markup-rows -show-icons -no-custom -format i -selected-row 0 \
+    -hover-select -me-select-entry '' -me-accept-entry MousePrimary \
+    -kb-cancel "Escape,q" \
+    "${keys[@]}")
+rc=$?
+
+case $rc in
+    0) ;;                          # Enter / click → idx is the row
+    1[0-9]) idx=$((rc - 10)) ;;    # kb-custom-N exits with 9+N → row N-1
+    *) exit 0 ;;                   # cancelled
+esac
+[[ $idx =~ ^[0-9]+$ ]] && ((idx < ${#BROWSERS[@]})) || exit 0
+
+IFS='|' read -r _ _ _ cmd <<<"${BROWSERS[$idx]}"
+if [[ $cmd == COPY ]]; then
+    printf '%s' "$url" | detach wl-copy
+    detach notify-send -a url-pick -t 2000 "Link copied" "$url"
+else
+    detach uwsm app -- "$cmd" "$url"
+fi

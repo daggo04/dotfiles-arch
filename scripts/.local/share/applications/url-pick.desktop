@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Browser Picker
+Comment=Choose which browser opens a link (url-pick)
+Exec=url-pick %u
+NoDisplay=true
+Terminal=false
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
