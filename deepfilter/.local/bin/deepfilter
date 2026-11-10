@@ -1,0 +1,48 @@
+#!/bin/bash
+# deepfilter — toggle DeepFilterNet mic noise suppression on the Arctis.
+#
+#   deepfilter [toggle]   flip it
+#   deepfilter on|off     set it (off persists across reboots)
+#   deepfilter state      print on/off
+#
+# The filter runs as its own PipeWire process (deepfilter.service, config in
+# ~/.config/pipewire/deepfilter.conf), so start/stop adds or removes the
+# "DeepFilter Arctis Nova Mono" source. While it's gone, WirePlumber falls
+# back to the raw Arctis mic; when it returns it becomes default again.
+#
+# Never `systemctl disable` the unit (Stow symlink -> systemd deletes it).
+set -euo pipefail
+
+UNIT=deepfilter.service
+FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/deepfilter/off"
+
+state() {
+    if systemctl --user is-active --quiet "$UNIT"; then echo on; else echo off; fi
+}
+
+notify() {
+    notify-send -a DeepFilter -i "$1" "Mic noise suppression" "$2" 2>/dev/null || true
+}
+
+turn_on() {
+    rm -f "$FLAG"
+    # Clears a start-limit lockout left by repeated panics.
+    systemctl --user reset-failed "$UNIT" 2>/dev/null || true
+    systemctl --user start "$UNIT"
+    notify audio-input-microphone "On"
+}
+
+turn_off() {
+    mkdir -p "${FLAG%/*}"
+    touch "$FLAG"
+    systemctl --user stop "$UNIT"
+    notify microphone-sensitivity-muted "Off (raw mic)"
+}
+
+case "${1:-toggle}" in
+    on)     turn_on ;;
+    off)    turn_off ;;
+    toggle) if [ "$(state)" = on ]; then turn_off; else turn_on; fi ;;
+    state)  state ;;
+    *)      echo "usage: deepfilter [on|off|toggle|state]" >&2; exit 2 ;;
+esac

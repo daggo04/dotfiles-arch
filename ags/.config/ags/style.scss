@@ -339,6 +339,11 @@ window.sidebar .sidebar-container {
   color: $red;
 }
 
+// Mic noise suppression toggle: green when the filter is running
+.deepfilter-btn.active {
+  color: $green;
+}
+
 menubutton.device-dropdown-btn,
 menubutton.device-dropdown-btn > button {
   all: unset;

@@ -1,0 +1,22 @@
+[Unit]
+Description=DeepFilterNet mic noise suppression (own PipeWire process)
+After=pipewire.service wireplumber.service
+BindsTo=pipewire.service
+# Off-switch that survives reboots. Written by `deepfilter off`.
+# Do NOT `systemctl disable` this unit: it is a Stow symlink and systemd
+# deletes such symlinks on disable. Use `deepfilter on|off` instead.
+ConditionPathExists=!%S/deepfilter/off
+# A plugin panic (CPU starved) restarts it; give up after 3 panics in 2 min
+# so a game that's pinning the CPU doesn't cause a restart loop.
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pipewire -c deepfilter.conf
+Restart=on-failure
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=pipewire.service

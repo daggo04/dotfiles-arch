@@ -30,6 +30,14 @@ else
 fi
 commands["󰋽  Sun-adapt: status"]="notify-send -i weather-clear 'Sun-adapt' \"\$(sun-adapt status)\""
 
+# --- DeepFilter mic noise suppression ----------------------------------------
+# Own PipeWire process; `deepfilter` toggles it (flag file, never `disable`).
+if [ "$(deepfilter state 2>/dev/null)" = "on" ]; then
+    commands["󱑽  Mic noise filter: turn OFF"]="deepfilter off"
+else
+    commands["󱑽  Mic noise filter: turn ON"]="deepfilter on"
+fi
+
 if [ -z "$1" ]; then
     printf '%s\n' "${!commands[@]}" | sort
 else

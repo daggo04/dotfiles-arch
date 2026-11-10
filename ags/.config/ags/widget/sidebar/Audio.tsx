@@ -1,6 +1,15 @@
 import { Astal, Gtk } from "ags/gtk4"
+import { execAsync } from "ags/process"
 import { createBinding, createEffect } from "gnim"
+import GLib from "gi://GLib"
 import Wp from "gi://AstalWp"
+
+// DeepFilterNet noise suppression runs as its own PipeWire process
+// (deepfilter.service). Its output node only exists while it runs, so the
+// node's presence IS the on/off state - stays right after a toggle from
+// rofi, or if the plugin panics and the service dies.
+const DEEPFILTER_NODE = "playback.deepfilter_arctis"
+const DEEPFILTER_CMD = GLib.get_home_dir() + "/.local/bin/deepfilter"
 
 function clearBox(box: Gtk.Box) {
   let child = box.get_first_child()
@@ -105,14 +114,29 @@ function DeviceDropdown({
   return menuBtn
 }
 
+function DeepFilterButton({ microphones }: { microphones: Wp.Endpoint[] }) {
+  const on = microphones.some((ep) => ep.name === DEEPFILTER_NODE)
+  return (
+    <button
+      class={on ? "icon-button mute-btn deepfilter-btn active" : "icon-button mute-btn deepfilter-btn"}
+      tooltipText={on ? "Noise suppression on - click for raw mic" : "Noise suppression off - click to enable"}
+      onClicked={() => { execAsync([DEEPFILTER_CMD, "toggle"]).catch(console.error) }}
+    >
+      <label label="󱑽" />
+    </button>
+  ) as Gtk.Button
+}
+
 function AudioChannel({
   endpoint,
   label,
   endpoints,
+  extra,
 }: {
   endpoint: Wp.Endpoint
   label: string
   endpoints: Wp.Endpoint[]
+  extra?: Gtk.Widget
 }) {
   const mute = createBinding(endpoint, "mute")
   const muteLabel = mute.as((m) => m ? "󰖁" : "󰕾")
@@ -135,6 +159,7 @@ function AudioChannel({
           <label label={muteLabel} />
         </button>
         <VolumeSlider endpoint={endpoint} />
+        {extra ?? <box visible={false} />}
       </box>
     </box>
   ) as Gtk.Box
@@ -176,6 +201,7 @@ export default function Audio() {
         endpoint: m,
         label: "Input",
         endpoints: list ?? [],
+        extra: DeepFilterButton({ microphones: list ?? [] }),
       }))
     } else {
       micBox.append(new Gtk.Label({ label: "No microphone" }))
