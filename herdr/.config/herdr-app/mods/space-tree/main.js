@@ -337,6 +337,7 @@ export default class SpaceTree extends View {
         address: k.address,
         pane: null,
         name: k.name || k.template || k.program?.name || k.address,
+        program: k.program, // its icon (node for a pnpm stack, etc.)
         status: kidStatus(k, listed),
         kids: subs(k.address),
       }));
@@ -354,6 +355,7 @@ export default class SpaceTree extends View {
         address: p.terminal,
         pane: p.pane,
         name: paneName(p),
+        program: p.program,
         status: p.status,
         kids: subs(p.terminal),
       }));
