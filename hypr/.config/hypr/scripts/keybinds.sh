@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # keybinds.sh — Hyprland keybind cheatsheet as a rofi script mode (a tab).
 #
-# Wired into hyprland.conf as a rofi modi, e.g.:
+# Wired in as a rofi modi, e.g.:
 #   rofi -show drun -modi drun,keybinds:/home/dagobh/.config/hypr/scripts/keybinds.sh
 #
 # Rofi calls this with no args to populate the tab. On selection it calls it
 # again with the chosen row as $1 — there's nothing to launch (read-only
 # cheatsheet), so we just exit. The list is read LIVE from `hyprctl binds`,
-# so it always matches the current config; only binds declared with `bindd`
-# (i.e. given a description) show up.
+# so it always matches the current config; only binds given a `description`
+# in hl.bind()'s flags show up.
 
 [ -n "$1" ] && exit 0
 

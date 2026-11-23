@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # cliphist-store — clipboard watcher hook, replaces a bare `cliphist store`.
 #
-# Wired in hyprland.conf as:
-#   exec-once = wl-paste --watch ~/.local/bin/cliphist-store
+# Started at login from the Hyprland config (hypr modules/autostart.lua) as:
+#   wl-paste --watch ~/.local/bin/cliphist-store
 #
 # It does two things cliphist can't do on its own:
 #

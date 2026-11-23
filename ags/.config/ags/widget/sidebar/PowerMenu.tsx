@@ -15,7 +15,7 @@ export default function PowerMenu() {
         icon="󰍃"
         tooltip="Logout"
         className="power-logout"
-        onClick={() => execAsync("hyprctl dispatch exit")}
+        onClick={() => execAsync(["hyprctl", "dispatch", "hl.dsp.exit()"])}
       />
       <IconButton
         icon="󰜉"

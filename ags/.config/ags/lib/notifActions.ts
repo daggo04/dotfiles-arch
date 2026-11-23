@@ -65,14 +65,17 @@ export function focusApp(notif: Notifd.Notification): void {
   }
   if (!match) return
 
-  // AstalHyprland returns the address bare ("55d7f728c310") but the
-  // focuswindow dispatcher only accepts the 0x form — without it Hyprland
-  // answers "No such window found" and the dispatch fails silently.
+  // AstalHyprland returns the address bare ("55d7f728c310") but Hyprland's
+  // window selector only accepts the 0x form — without it Hyprland answers
+  // "No such window found" and the dispatch fails silently.
   const addr = match.get_address()
   const target = addr.startsWith("0x") ? addr : `0x${addr}`
 
   try {
-    hypr.dispatch("focuswindow", `address:${target}`)
+    // With the Lua config, `dispatch` takes a Lua expression. AstalHyprland's
+    // dispatch(d, args) just sends "dispatch <d> <args>", so the whole
+    // expression goes in `d`. (Upstream fix pending: Aylur/astal PR #446.)
+    hypr.dispatch(`hl.dsp.focus({ window = "address:${target}" })`, "")
   } catch {
     // window went away between listing and dispatching
   }

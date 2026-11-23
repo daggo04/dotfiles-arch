@@ -16,7 +16,7 @@ commands=(
     ["󰍛  System Monitor"]="kitty --class btop -e btop"
     ["󰑓  Reload Waybar"]="pkill waybar; waybar"
     ["󰑓  Reload Swaync"]="pkill swaync; swaync"
-    ["󰅖  Kill Window"]="hyprctl dispatch killactive"
+    ["󰅖  Kill Window"]="hyprctl dispatch 'hl.dsp.window.close()'"
 )
 
 # --- sun-adapt -------------------------------------------------------------

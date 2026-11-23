@@ -41,7 +41,7 @@ is `ckb-next.real` (AUR wrapper), so `pkill -x ckb-next` misses it:
 ```bash
 pkill -x ckb-next.real
 cp ~/.dotfiles/ckb-next/.config/ckb-next/ckb-next.conf ~/.config/ckb-next/
-hyprctl dispatch exec ckb-next
+hyprctl dispatch 'hl.dsp.exec_cmd("ckb-next")'
 ```
 
 The device section is keyed by the mouse's serial, so it only applies to this

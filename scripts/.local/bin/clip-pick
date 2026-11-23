@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """clip-pick — fzf clipboard history picker (SUPER+V), runs in a floating kitty.
 
-Wired in hyprland.conf as:
-    bindd = $mainMod, V, Clipboard history, exec, ~/.local/bin/clip-pick --toggle
-    windowrule = match:class clip-pick, float on, size ..., center on
+Wired in the Hyprland Lua config:
+    SUPER+V bind        hypr modules/binds/apps.lua  (exec clip-pick --toggle)
+    float/size/centre   hypr modules/rules.lua       (`floating` table, class clip-pick)
 
 Why fzf and not rofi: rofi's fuzzy sort penalises every character AFTER the
 match (helper.c, GAP_SCORE on the trailing run) and highlights with a separate
