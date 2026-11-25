@@ -1,16 +1,22 @@
 // Spaces as one tree, replacing the separate Spaces and Agents lists:
 //
-//   Space                      (header: avatar, name; click folds, right-click = space menu)
-//     Session title            (a tab, named after its agent's live title; click focuses it)
-//       ├ sub-agent            (terminals the agent started with `hc run`)
-//       └ terminal             (the tab's other panes, each with its own sub-agents)
+//   Machine                    (only once another machine is added: "This computer", "cachyos")
+//     Space                    (header: avatar, name; click folds, right-click = space menu)
+//       Session title          (a tab, named after its agent's live title; click focuses it)
+//         ├ sub-agent          (terminals the agent started with `hc run`)
+//         └ terminal           (the tab's other panes, each with its own sub-agents)
+//
+// Narrowed to the rail: a machine icon per machine (same grouping), an avatar per space
+// (a pill on the edge marks the shown one), and a mark per session: its status when
+// there's news, else its program's icon. Every mark has a tooltip with the full title.
 //
 // The space goes without saying under its header, so agents don't need it in their name.
-// Pieces borrowed from the shipped `spaces` and `agents` mods (avatars, status marks, tree lines).
+// Pieces borrowed from the shipped `spaces` and `agents` mods (avatars, status marks,
+// tree lines, machine headers).
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, agents, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, layout, home } from "herdr";
+import { spaces, machines, panes, terminals, agents, focused, run, hc, theme, shared, setShared, setAgentOrder, openOverlay, layout, home, window } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -33,15 +39,25 @@ function expandSidebar() {
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 const PALETTE = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
 
+// Rail cells are this wide, centred in the rail (44 px here, 76 on macOS).
+const RAIL_CELL = 32;
+const railCell = (el) => h_flex().w_full().flex_none().justify_center().child(el);
+
 // Leading emoji/symbols off: "⚙️ System" -> "System" (the avatar already shows the emoji).
 const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
-const tilde = (p) => {
+// Our home as ~. Another machine's home isn't ours, so there it goes by the usual places.
+const tilde = (p, remote = false) => {
+  if (!p) return p;
+  if (remote) return p.replace(/^\/(?:home|Users)\/[^/]+(?=\/|$)/, "~");
   const h = home();
-  return p && h && (p === h || p.startsWith(h + "/")) ? "~" + p.slice(h.length) : p;
+  return h && (p === h || p.startsWith(h + "/")) ? "~" + p.slice(h.length) : p;
 };
 
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const worst = (list) => list.reduce((m, s) => ((RANK[s] ?? 0) > (RANK[m] ?? 0) ? s : m), null);
+// The states worth a look; idle is the one that needs nothing.
+const LOUD = new Set(["working", "blocked", "done"]);
+const WORD = { working: "Working", blocked: "Needs you", done: "Done", idle: "Idle" };
 
 function duration(ms) {
   const m = Math.floor(ms / 60000);
@@ -66,13 +82,13 @@ function telling(p) {
 
 // What a pane is called on its own row.
 // A bare shell goes by its folder (fish's own title is "dir - fish"); a program in front of it by its title.
-const paneName = (p) => (p.program?.shell ? tilde(p.cwd) || p.program?.name : telling(p) ?? p.program?.name) ?? "terminal";
+const paneName = (p, remote) => (p.program?.shell ? tilde(p.cwd, remote) || p.program?.name : telling(p) ?? p.program?.name) ?? "terminal";
 
 // The session's title: a name someone gave the tab wins, then its agent's title.
-function sessionTitle(tab, lead) {
+function sessionTitle(tab, lead, remote) {
   if (tab.named) return tab.name;
   if (!lead) return `Tab ${tab.name}`;
-  return paneName(lead);
+  return paneName(lead, remote);
 }
 
 // A sub-agent without a pane: its raw word, error counting as blocked. Never done:
@@ -85,19 +101,53 @@ const kidStatus = (k, listed) => {
 export default class SpaceTree extends View {
   init(_props, cx) {
     this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]"));
+    try { this.machinesFolded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]")); } catch { this.machinesFolded = new Set(); }
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("ages") ?? "{}");
     this.hovered = null;
     this.pressed = null; // space being dragged
     this.over = null; // space group under the pointer while dragging
     this.started = Date.now();
+    this.hcMachines = []; // `hc machine ls`: name, state (connected, needs_login, ...)
+    this.machinesKey = "";
+    this.refreshMachines(cx);
+    cx.timer.every(15000, (cx) => this.refreshMachines(cx));
     cx.timer.every(30000, (cx) => cx.notify()); // the "5m" ages
+  }
+
+  refreshMachines(cx) {
+    cx.spawn(async (cx) => {
+      try {
+        const r = await hc(["machine", "ls", "--json"]);
+        if (r.code !== 0) return;
+        const list = (JSON.parse(r.stdout).machines ?? []).filter((m) => !m.temporary);
+        const key = JSON.stringify(list.map((m) => [m.name, m.state]));
+        if (key === this.machinesKey) return;
+        this.machinesKey = key;
+        this.hcMachines = list;
+        cx.notify();
+      } catch {}
+    });
   }
 
   toggle(id, cx) {
     this.folded.has(id) ? this.folded.delete(id) : this.folded.add(id);
     localStorage.setItem("folded", JSON.stringify([...this.folded]));
     cx.notify();
+  }
+
+  toggleMachine(id, cx) {
+    this.machinesFolded.has(id) ? this.machinesFolded.delete(id) : this.machinesFolded.add(id);
+    localStorage.setItem("machines.folded", JSON.stringify([...this.machinesFolded]));
+    cx.notify();
+  }
+
+  hover(key) {
+    return (on, cx) => {
+      if (on) this.hovered = key;
+      else if (this.hovered === key) this.hovered = null;
+      cx.notify();
+    };
   }
 
   // Done and idle count as one: looking at a finished agent turns done into idle.
@@ -115,6 +165,29 @@ export default class SpaceTree extends View {
     const listed = new Set(list.map((a) => a.address));
     for (const [k, c] of Object.entries(this.changed)) if (!listed.has(k) && now - c.at > 30 * 86400000) delete this.changed[k];
     localStorage.setItem("ages", JSON.stringify(this.changed));
+  }
+
+  // One group per machine, once there's more than this computer; null while there isn't.
+  groups(tree) {
+    const remote = [...new Set([...tree.map((e) => e.s.machine).filter(Boolean), ...this.hcMachines.map((m) => m.name)])].sort();
+    if (!remote.length) return null;
+    const docs = machines();
+    return [null, ...remote].map((m) => {
+      const info = m ? (this.hcMachines.find((k) => k.name === m) ?? null) : null;
+      const doc = docs.find((d) => (d.name ?? null) === m)?.layout;
+      const items = tree.filter((e) => (e.s.machine ?? null) === m);
+      // Before the first `hc machine ls` answers, a readable layout means it's there.
+      const connected = !m || info?.state === "connected" || (!info && doc === "ready");
+      return {
+        m,
+        id: m ?? "local",
+        items,
+        connected,
+        state: connected ? "connected" : (info?.state ?? "asleep"),
+        loading: doc === "loading",
+        top: worst(items.flatMap((e) => e.sessions.flatMap((x) => x.statuses))),
+      };
+    });
   }
 
   // Status at a glance. Full: a labelled pill (sessions). Compact: an icon (sub-agents,
@@ -136,6 +209,28 @@ export default class SpaceTree extends View {
     if (s === "done") return pill(t.done, "Done");
     if (s === "idle") return div().size(8).mx(4).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
     return div().size(8).mx(4).flex_none(); // a plain terminal: room kept, nothing drawn
+  }
+
+  // A small "+" that does its own thing: not a drag, not a fold.
+  plus(t, id, tip, action, size = 18) {
+    return div()
+      .id(id)
+      .size(size)
+      .flex_none()
+      .flex()
+      .items_center()
+      .justify_center()
+      .rounded(size > 20 ? 6 : 4)
+      .text_color(t.dim)
+      .hover((x) => x.bg(t.hover).text_color(t.foreground))
+      .tooltip(tip)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_mouse_up("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        action();
+      })
+      .child(svg("mods/workspace-chrome/plus.svg").size(size > 20 ? 14 : 12));
   }
 
   // interactive: its own click folds (sessions). A space header folds on its own click.
@@ -162,6 +257,72 @@ export default class SpaceTree extends View {
       .when(!open && count > 0, (el) => el.child(String(count)));
   }
 
+  // ── Machine header (only with more than one machine) ─────────
+  machineRow(t, g, first) {
+    const folded = this.machinesFolded.has(g.id);
+    const hov = this.hovered === `m-${g.id}`;
+    const login = g.state === "needs_login" ? `hc machine login ${g.m}` : null;
+    const word = g.connected ? null : g.state.replace(/_/g, " ");
+    const head = h_flex()
+      .id(`m-${g.id}`)
+      .h(26)
+      .mt(first ? 2 : 6)
+      .px(8)
+      .gap(7)
+      .flex_none()
+      .items_center()
+      .rounded(7)
+      .text_size(11)
+      .text_color(t.dim)
+      .cursor_pointer()
+      .hover((el) => el.bg(t.hover).text_color(t.muted))
+      .on_hover(this.hover(`m-${g.id}`))
+      .on_click((_e, cx) => this.toggleMachine(g.id, cx))
+      .child(svg(`mods/workspace-chrome/${g.m ? "server" : "monitor"}.svg`).size(13).flex_none())
+      .child(div().flex_1().min_w(0).truncate().font_semibold().child(g.m ?? "This computer"))
+      .when(Boolean(word), (el) => el.child(div()
+        .id(`m-state-${g.id}`)
+        .flex_none()
+        .text_color(login ? t.blocked : t.dim)
+        .when(Boolean(login), (x) => x
+          .tooltip(`Run ${login}: click to copy`)
+          .hover((s) => s.text_color(t.foreground))
+          .on_click((_e, cx) => {
+            cx.stop_propagation();
+            cx.write_to_clipboard(login);
+          }))
+        .child(word)))
+      .when(g.connected && hov, (el) => el.child(this.plus(t, `m-new-${g.id}`, `New space on ${g.m ?? "this computer"}`, () => run("space.new", { machine: g.m ?? "" }))))
+      .when(folded && LOUD.has(g.top), (el) => el.child(this.status(t, g.top, true)))
+      .child(div().size(6).rounded(3).flex_none().bg(g.connected ? t.ansi2 : t.dim))
+      .child(h_flex().flex_none().gap(3).items_center()
+        .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none())
+        .when(folded && g.items.length > 0, (el) => el.child(String(g.items.length))));
+    // Groups after the first get a rule above them: machines are sections, not rows.
+    return first ? head : v_flex().flex_none().child(div().mx(8).mt(8).h(1).bg(t.border)).child(head);
+  }
+
+  // What a machine shows with no spaces: loading, or a way to start one.
+  machineEmpty(t, g) {
+    if (g.loading) return h_flex().h(28).flex_none().px(8).items_center().text_size(12).text_color(t.dim).child("Loading…");
+    if (!g.connected) return null;
+    return h_flex()
+      .id(`m-empty-${g.id}`)
+      .h(28)
+      .flex_none()
+      .px(8)
+      .gap(8)
+      .items_center()
+      .rounded(7)
+      .text_size(12)
+      .text_color(t.dim)
+      .cursor_pointer()
+      .hover((el) => el.bg(t.hover).text_color(t.foreground))
+      .on_click(() => run("space.new", { machine: g.m ?? "" }))
+      .child(svg("mods/workspace-chrome/plus.svg").size(12).flex_none())
+      .child("New space here");
+  }
+
   // ── Space header ─────────────────────────────────────────────
   spaceRow(t, s, fill, sessions) {
     const open = !this.folded.has(s.id);
@@ -179,11 +340,7 @@ export default class SpaceTree extends View {
       .rounded(7)
       .cursor_pointer()
       .hover((el) => el.bg(t.hover))
-      .on_hover((on, cx) => {
-        if (on) this.hovered = `sp-${s.id}`;
-        else if (this.hovered === `sp-${s.id}`) this.hovered = null;
-        cx.notify();
-      })
+      .on_hover(this.hover(`sp-${s.id}`))
       // Press starts a possible drag; release on the header itself is a click: fold.
       // (A release over another space's group is handled by that group: a move.)
       .on_mouse_down("left", () => {
@@ -200,26 +357,8 @@ export default class SpaceTree extends View {
       .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: s.id } } }))
       .child(h_flex().size(16).flex_none().rounded(4).bg(fill).items_center().justify_center().text_size(9.5).font_bold().text_color("#ffffff").child([...s.name][0]?.toUpperCase() ?? "?"))
       .child(div().flex_1().min_w(0).truncate().text_size(11.5).font_semibold().text_color(s.active ? t.foreground : t.muted).child(name))
-      .when(Boolean(s.machine), (el) => el.child(div().flex_none().text_size(10).text_color(t.dim).child(s.machine)))
-      .when(hov, (el) => el.child(div()
-        .id(`sp-new-${s.id}`)
-        .size(18)
-        .flex_none()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded(4)
-        .text_color(t.dim)
-        .hover((x) => x.bg(t.hover).text_color(t.foreground))
-        .tooltip("New tab here")
-        .on_mouse_down("left", (_e, cx) => cx.stop_propagation()) // not a drag, not a fold
-        .on_mouse_up("left", (_e, cx) => cx.stop_propagation())
-        .on_click((_e, cx) => {
-          cx.stop_propagation();
-          run("tab.new", { space: s.id });
-        })
-        .child(svg("mods/workspace-chrome/plus.svg").size(12))))
-      .when(!open && top && top !== "idle", (el) => el.child(this.status(t, top, true)))
+      .when(hov, (el) => el.child(this.plus(t, `sp-new-${s.id}`, "New tab here", () => run("tab.new", { space: s.id }))))
+      .when(!open && LOUD.has(top), (el) => el.child(this.status(t, top, true)))
       .child(this.chevron(t, s.id, open, open ? 0 : sessions.length, top, false));
   }
 
@@ -290,13 +429,21 @@ export default class SpaceTree extends View {
       .when(on, (el) => el.bg(t.selected))
       .hover((el) => el.bg(t.hover))
       .when(Boolean(bar), (el) => el.child(div().absolute().left(3).top(7).bottom(7).w(3).rounded(2).bg(bar)))
-      .on_click(() => (lead ? run("pane.focus", { pane: lead.pane }) : (run("space.select", { id: s.id }), run("tab.select", { id: tab.id }))))
+      .on_click(() => this.focusSession(s, x))
       .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 160, props: { tab: "tab", target: { id: tab.id, space: s.id } } }))
       .when(Boolean(pic), (el) => el.child(pic))
-      .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(sessionTitle(tab, lead)))
+      .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(sessionTitle(tab, lead, Boolean(s.machine))))
       .when(kids.length > 0, (el) => el.child(this.chevron(t, tab.id, open, kids.length, top)))
       .when(Boolean(when) && Boolean(st), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(duration(now - when))))
       .child(this.status(t, st));
+  }
+
+  focusSession(s, x) {
+    if (x.lead) run("pane.focus", { pane: x.lead.pane });
+    else {
+      run("space.select", { id: s.id });
+      run("tab.select", { id: x.tab.id });
+    }
   }
 
   // ── Children: sub-agents and the tab's other terminals ───────
@@ -328,6 +475,7 @@ export default class SpaceTree extends View {
 
   // The tree under one session, flattened with the lines in front of each row.
   sessions(s, ps, all, listed) {
+    const remote = Boolean(s.machine);
     const byTerminal = new Set(ps.map((p) => p.terminal).filter(Boolean));
     // Sub-agents of `addr`; one given a pane (terminal.keep) shows as a pane instead.
     const subs = (addr) => all
@@ -354,7 +502,7 @@ export default class SpaceTree extends View {
         key: p.pane,
         address: p.terminal,
         pane: p.pane,
-        name: paneName(p),
+        name: paneName(p, remote),
         program: p.program,
         status: p.status,
         kids: subs(p.terminal),
@@ -365,25 +513,115 @@ export default class SpaceTree extends View {
     });
   }
 
-  // ── The narrow rail: an avatar per space, a mark per session ──
-  rail(t, tree) {
+  // ── The narrow rail ──────────────────────────────────────────
+  railMachine(t, g, first) {
+    const folded = this.machinesFolded.has(g.id);
+    const tip = (g.m ? `${g.m} · ${g.state.replace(/_/g, " ")}` : "This computer") + (folded ? ` · ${g.items.length} folded` : "");
+    const cell = railCell(h_flex()
+      .id(`rail-m-${g.id}`)
+      .w(RAIL_CELL)
+      .h(24)
+      .mt(first ? 2 : 4)
+      .flex_none()
+      .justify_center()
+      .items_center()
+      .rounded(6)
+      .cursor_pointer()
+      .text_color(folded ? t.muted : t.dim)
+      .hover((el) => el.bg(t.hover).text_color(t.foreground))
+      .tooltip(tip)
+      .on_click((_e, cx) => this.toggleMachine(g.id, cx))
+      .child(div().relative().flex_none()
+        .child(svg(`mods/workspace-chrome/${g.m ? "server" : "monitor"}.svg`).size(14))
+        // Connection dot on other machines; on a folded one, what it hides that needs a look.
+        .when(Boolean(g.m) || (folded && LOUD.has(g.top)), (el) => el.child(div().absolute().right(-3).bottom(-2).size(7).rounded(4).border_1().border_color(t.chrome)
+          .bg(folded && LOUD.has(g.top) ? t[g.top] : g.connected ? t.ansi2 : t.dim)))));
+    return first ? [cell] : [railCell(div().w(20).h(1).mt(8).bg(t.border)), cell];
+  }
+
+  railSpace(t, { s, fill, sessions }) {
+    const folded = this.folded.has(s.id);
+    const top = worst(sessions.flatMap((x) => x.statuses));
+    const name = clean(s.name) || s.name;
+    const remote = Boolean(s.machine);
+    const head = h_flex()
+      .id(`rail-sp-${s.id}`)
+      .relative()
+      .w_full()
+      .h(30)
+      .mt(6)
+      .flex_none()
+      .justify_center()
+      .items_center()
+      .cursor_pointer()
+      .tooltip(folded && sessions.length ? `${name} · ${sessions.length} folded` : name)
+      .on_click(() => run("space.select", { id: s.id }))
+      // The shown space: a pill on the rail's edge.
+      .when(s.active, (el) => el.child(div().absolute().left(0).top(6).bottom(6).w(3).rounded(2).bg(t.foreground)))
+      .child(h_flex().id(`rail-av-${s.id}`).w(RAIL_CELL).h(28).rounded(7).justify_center().items_center()
+        .hover((el) => el.bg(t.hover))
+        .child(h_flex().relative().size(20).rounded(6).bg(fill).items_center().justify_center()
+          .text_size(11).font_bold().text_color("#ffffff")
+          .child([...s.name][0]?.toUpperCase() ?? "?")
+          // Folded: what it hides that needs a look.
+          .when(folded && LOUD.has(top), (el) => el.child(div().absolute().right(-3).top(-3).size(8).rounded(4).border_1().border_color(t.chrome).bg(t[top])))));
+    if (folded) return [head];
+    return [head, ...sessions.map((x) => {
+      const on = focused()?.tab === x.tab.id;
+      const st = worst(x.statuses);
+      const loud = LOUD.has(st);
+      const title = sessionTitle(x.tab, x.lead, remote);
+      // News shows as its status; a quiet session as what runs there.
+      const mark = loud ? this.status(t, st, true)
+        : (x.lead && icon(x.lead.program, 14, t.muted)) ?? svg("mods/workspace-chrome/terminal.svg").size(14).flex_none().text_color(t.muted);
+      return railCell(h_flex()
+        .id(`rail-tab-${x.tab.id}`)
+        .w(RAIL_CELL)
+        .h(24)
+        .flex_none()
+        .justify_center()
+        .items_center()
+        .rounded(6)
+        .cursor_pointer()
+        .when(on, (el) => el.bg(t.selected))
+        .when(!on, (el) => el.hover((h) => h.bg(t.hover)))
+        .when(!on && !loud, (el) => el.opacity(0.6))
+        .tooltip(st ? `${title} · ${WORD[st] ?? st}` : title)
+        .on_click(() => this.focusSession(s, x))
+        .child(mark));
+    })];
+  }
+
+  rail(t, tree, groups) {
+    const body = groups
+      ? groups.flatMap((g, gi) => [
+        ...this.railMachine(t, g, gi === 0),
+        ...(this.machinesFolded.has(g.id) ? [] : g.items.flatMap((e) => this.railSpace(t, e))),
+      ])
+      : tree.flatMap((e) => this.railSpace(t, e));
     return v_flex()
       .size_full()
       .min_h(0)
       .bg(t.chrome)
       .text_size(12)
-      .child(v_flex().id("st-rail").flex_1().min_h(0).overflow_y_scrollbar().children(tree.flatMap(({ s, fill, sessions }) => [
-        h_flex().id(`rail-sp-${s.id}`).h(28).mt(4).flex_none().justify_center().items_center()
-          .on_click(() => run("space.select", { id: s.id }))
-          .child(h_flex().size(18).rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...s.name][0]?.toUpperCase() ?? "?")),
-        ...sessions.map((x) => h_flex().id(`rail-tab-${x.tab.id}`).h(22).flex_none().justify_center().items_center()
-          .when(focused()?.tab === x.tab.id, (el) => el.bg(t.raised))
-          .hover((el) => el.bg(t.hover))
-          .on_click(() => (x.lead ? run("pane.focus", { pane: x.lead.pane }) : run("tab.select", { id: x.tab.id })))
-          .child(this.status(t, worst(x.statuses) ?? (x.lead ? null : null), true))),
-      ])))
-      .child(h_flex().h(28).items_center().justify_center()
-        .child(div().id("st-expand").text_size(13).text_color(t.dim).hover((el) => el.text_color(t.foreground)).on_click(expandSidebar).child("»")));
+      .child(h_flex().h(31).flex_none().justify_center().items_center()
+        .child(this.plus(t, "st-rail-new", "New space", () => run("space.new"), 26)))
+      .child(v_flex().id("st-rail").flex_1().min_h(0).pb(10).overflow_y_scroll().children(body))
+      // On macOS the traffic lights take the brand row's toggle, so the rail brings its own.
+      .when(window()?.platform === "macos", (el) => el.child(railCell(div()
+        .id("st-expand")
+        .w(RAIL_CELL)
+        .h(26)
+        .mb(4)
+        .rounded(6)
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(t.dim)
+        .hover((x) => x.bg(t.hover).text_color(t.foreground))
+        .tooltip("Expand sidebar")
+        .on_click(expandSidebar)
+        .child(svg("mods/workspace-chrome/chevron-right.svg").size(13)))));
   }
 
   render() {
@@ -409,26 +647,34 @@ export default class SpaceTree extends View {
     }
     if (changed) setShared("space.colors", kept);
 
-    const tree = sp.map((s) => {
+    const tree = sp.map((s, i) => {
       const color = kept[s.id] ?? "ansi6";
       const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
-      return { s, fill, sessions: this.sessions(s, ps, all, listed) };
+      return { s, i, fill, sessions: this.sessions(s, ps, all, listed) };
     });
+    const groups = this.groups(tree);
+    const order = groups ? groups.flatMap((g) => g.items) : tree;
 
     // agent.next / agent.prev walk the tree top to bottom.
     const agentSet = new Set(ag.map((a) => a.address));
-    setAgentOrder(tree.flatMap(({ sessions }) => sessions.flatMap((x) => [x.lead?.terminal, ...x.kids.map((k) => k.address)])).filter((a) => a && agentSet.has(a)));
+    setAgentOrder(order.flatMap(({ sessions }) => sessions.flatMap((x) => [x.lead?.terminal, ...x.kids.map((k) => k.address)])).filter((a) => a && agentSet.has(a)));
 
-    if (narrow()) return this.rail(t, tree);
+    if (narrow()) return this.rail(t, tree, groups);
 
-    const rows = tree.map(({ s, fill, sessions }, i) => {
+    const spaceBlock = ({ s, i, fill, sessions }) => {
       const head = this.spaceRow(t, s, fill, sessions);
       const body = this.folded.has(s.id) ? [] : sessions.flatMap((x) => {
         const row = this.sessionRow(t, s, x, now);
         return this.folded.has(x.tab.id) ? [row] : [row, ...x.kids.map((k) => this.kidRow(t, k))];
       });
       return this.group(t, s, i, [head, ...body]);
-    });
+    };
+    const rows = groups
+      ? groups.flatMap((g, gi) => [
+        this.machineRow(t, g, gi === 0),
+        ...(this.machinesFolded.has(g.id) ? [] : g.items.length ? g.items.map(spaceBlock) : [this.machineEmpty(t, g)].filter(Boolean)),
+      ])
+      : tree.map(spaceBlock);
 
     return v_flex()
       .size_full()
@@ -437,11 +683,7 @@ export default class SpaceTree extends View {
       .text_size(13)
       .child(h_flex().h(31).pl(16).pr(10).flex_none().items_center().justify_between().text_size(11.5).text_color(t.dim)
         .child("Spaces")
-        .child(div().id("st-space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-          .hover((el) => el.bg(t.hover).text_color(t.foreground))
-          .tooltip("New space")
-          .on_click(() => run("space.new"))
-          .child(svg("mods/workspace-chrome/plus.svg").size(14))))
+        .child(this.plus(t, "st-space-new", "New space", () => run("space.new"), 26)))
       .child(v_flex().id("st-list").flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always")
         // Released outside any space: the drag ends where it started.
         .on_mouse_up("left", (_e, cx) => {
